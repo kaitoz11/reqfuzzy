@@ -1,10 +1,10 @@
 package attacker
 
 import (
-	"github.com/kaitoz11/reqfuzzy/pkg/config"
-
 	"github.com/imroc/req/v3"
 )
+
+const DefaultUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3"
 
 type HClient struct {
 	httpClient  *req.Client
@@ -15,7 +15,7 @@ func NewHClient() *HClient {
 	return &HClient{
 		httpClient: req.C().
 			SetRedirectPolicy(req.NoRedirectPolicy()).
-			SetUserAgent(config.DefaultUserAgent),
+			SetUserAgent(DefaultUserAgent),
 		contextData: make(map[string]string),
 	}
 }

@@ -22,7 +22,9 @@ func NewHClient() *HClient {
 
 func NewHClientWith(client *req.Client) *HClient {
 	return &HClient{
-		httpClient:  client,
+		httpClient: client.
+			SetRedirectPolicy(req.NoRedirectPolicy()).
+			SetUserAgent(DefaultUserAgent),
 		contextData: make(map[string]string),
 	}
 }

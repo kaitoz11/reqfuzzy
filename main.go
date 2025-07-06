@@ -2,7 +2,8 @@ package main
 
 import (
 	"fmt"
-	"reqfuzzy/pkg/attacker"
+
+	"github.com/kaitoz11/reqfuzzy/pkg/attacker"
 )
 
 func main() {

@@ -9,6 +9,7 @@ const DefaultUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/
 type HClient struct {
 	httpClient  *req.Client
 	contextData map[string]string
+	user        *Actor
 }
 
 func NewHClient() *HClient {
@@ -27,6 +28,10 @@ func NewHClientWith(client *req.Client) *HClient {
 			SetUserAgent(DefaultUserAgent),
 		contextData: make(map[string]string),
 	}
+}
+
+func (c *HClient) SetUser(user *Actor) {
+	c.user = user
 }
 
 func (c *HClient) UseProxy(url, certfile string) {

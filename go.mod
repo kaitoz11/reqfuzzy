@@ -10,6 +10,7 @@ require (
 	github.com/pquerna/otp v1.5.0
 	github.com/tidwall/gjson v1.18.0
 	go.mercari.io/go-emv-code v0.1.5
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (

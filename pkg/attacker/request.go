@@ -54,10 +54,11 @@ func ParseRawRequest(client *req.Client, rawRequest string) (*req.Request, error
 
 	// Parse the body if present
 	if scanner.Scan() {
-		body := scanner.Text()
-		if body != "" {
+		bodyBytes := scanner.Bytes()
+
+		if len(bodyBytes) > 0 {
 			// Set the body of the request
-			request.SetBodyString(body)
+			request.SetBodyBytes(bodyBytes)
 		}
 	}
 

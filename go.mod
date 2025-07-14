@@ -9,6 +9,7 @@ require (
 	github.com/jedib0t/go-pretty/v6 v6.6.7
 	github.com/pquerna/otp v1.5.0
 	github.com/tidwall/gjson v1.18.0
+	github.com/tidwall/sjson v1.2.5
 	go.mercari.io/go-emv-code v0.1.5
 	gopkg.in/yaml.v3 v3.0.1
 )
@@ -27,7 +28,7 @@ require (
 	github.com/refraction-networking/utls v1.7.3 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
-	github.com/tidwall/pretty v1.2.0 // indirect
+	github.com/tidwall/pretty v1.2.1 // indirect
 	go.uber.org/mock v0.5.2 // indirect
 	golang.org/x/crypto v0.39.0 // indirect
 	golang.org/x/mod v0.25.0 // indirect

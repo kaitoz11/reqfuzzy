@@ -9,6 +9,7 @@ require (
 	github.com/jedib0t/go-pretty/v6 v6.6.7
 	github.com/pquerna/otp v1.5.0
 	github.com/tidwall/gjson v1.18.0
+	github.com/tidwall/sjson v1.2.5
 	go.mercari.io/go-emv-code v0.1.5
 	gopkg.in/yaml.v3 v3.0.1
 )

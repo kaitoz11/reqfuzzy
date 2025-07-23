@@ -1,4 +1,4 @@
-package attacker
+package actor
 
 import (
 	"fmt"

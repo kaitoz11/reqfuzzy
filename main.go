@@ -7,7 +7,7 @@ import (
 )
 
 func main() {
-	rawRequest := "GET /df?df=dfdsa&ggg=zzz#sdf HTTP/1.1\r\nHost: example.com\r\n\r\n"
+	rawRequest := []byte("GET /df?df=dfdsa&ggg=zzz#sdf HTTP/1.1\r\nHost: example.com\r\n\r\n")
 
 	client := attacker.NewHClient()
 	// client.UseProxy("http://127.0.0.1:8080", "./burp.pem")

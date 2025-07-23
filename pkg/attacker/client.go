@@ -2,6 +2,8 @@ package attacker
 
 import (
 	"github.com/imroc/req/v3"
+	"github.com/kaitoz11/reqfuzzy/pkg/attacker/actor"
+	"github.com/kaitoz11/reqfuzzy/pkg/attacker/rawreq"
 )
 
 const DefaultUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3"
@@ -9,7 +11,7 @@ const DefaultUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/
 type HClient struct {
 	httpClient  *req.Client
 	contextData map[string]string
-	user        *Actor
+	user        *actor.Actor
 }
 
 func NewHClient() *HClient {
@@ -30,7 +32,7 @@ func NewHClientWith(client *req.Client) *HClient {
 	}
 }
 
-func (c *HClient) SetUser(user *Actor) {
+func (c *HClient) SetUser(user *actor.Actor) {
 	c.user = user
 }
 
@@ -72,10 +74,31 @@ func (c *HClient) SendRequestWithBaseURL(r Request, baseURL string) (Response, e
 	return Response{response}, nil
 }
 
-func (c *HClient) ParseRawRequest(rawRequest string) (Request, error) {
-	request, err := ParseRawRequest(c.httpClient, rawRequest)
+// TODO: add send request with modified callback and print pretty
+func (c *HClient) ParseRawRequest(rawRequest []byte) (Request, error) {
+	parsedRawReq, err := rawreq.ParseRawRequest(rawRequest)
 	if err != nil {
-		return Request{nil}, err
+		return Request{}, err
+	}
+
+	request, err := FromParsedRawRequestAdapter(c.httpClient, parsedRawReq)
+	if err != nil {
+		return Request{}, err
 	}
 	return Request{request}, nil
+}
+
+func (c *HClient) SendRequestFromStore(req *RequestContext, modifier func(request Request) error) (Response, error) {
+	request, err := FromParsedRawRequestAdapter(c.httpClient, req.ParsedRequest)
+	if err != nil {
+		return Response{nil}, err
+	}
+	interceptedRequest := Request{request}
+
+	err = modifier(interceptedRequest)
+	if err != nil {
+		return Response{nil}, err
+	}
+
+	return c.SendRequest(interceptedRequest)
 }

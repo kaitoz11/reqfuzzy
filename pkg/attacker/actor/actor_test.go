@@ -1,9 +1,9 @@
-package attacker_test
+package actor_test
 
 import (
 	"testing"
 
-	"github.com/kaitoz11/reqfuzzy/pkg/attacker"
+	"github.com/kaitoz11/reqfuzzy/pkg/attacker/actor"
 	"gopkg.in/yaml.v3"
 )
 
@@ -14,7 +14,7 @@ metadata:
   role: admin
   otpsecret: mysecret
 `
-	actor := &attacker.Actor{}
+	actor := &actor.Actor{}
 	err := yaml.Unmarshal([]byte(yamlData), actor)
 	if err != nil {
 		t.Fatalf("Failed to unmarshal YAML: %v", err)

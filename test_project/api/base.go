@@ -19,7 +19,9 @@ func NewBaseApi() *BaseApi {
 	client.UseBaseURL("https://example.com")
 	// client.UseProxy("http://127.0.0.1:8080", "./path/to/cert")
 
-	apiStore := attacker.NewRequestStore()
+	apiStore := attacker.NewRequestStore(
+		attacker.BlackListPwnfoxHeader,
+	)
 
 	registerPreAuthen(apiStore)
 

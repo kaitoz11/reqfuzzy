@@ -8,7 +8,9 @@ import (
 func main() {
 	hacker := api.NewBaseApi()
 
-	hacker.SendRequestWithModifer(api.Login, func(request attacker.Request) error {
+	hacker.SendRequest(api.Login, func(request attacker.Request) error {
 		return nil
 	})
+
+	hacker.SendRequest(api.Login)
 }

@@ -46,7 +46,7 @@ func (c *HClient) UseProxy(url, certfile string) {
 
 // X-Pwnfox-Color
 func (c *HClient) UseColor(color ProxyColor) {
-	c.httpClient.SetCommonHeaderNonCanonical("X-Pwnfox-Color", string(color))
+	c.httpClient.SetCommonHeaderNonCanonical(PwnFoxHeaderKeyColor, string(color))
 }
 
 func (c *HClient) WithUpdatedClient(updateClientCallback func(client *req.Client)) {

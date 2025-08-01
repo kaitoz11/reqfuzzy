@@ -52,7 +52,72 @@ func parseHeaderLine(headerLine string) (key, value string, err error) {
 	return parts[0], parts[1], nil
 }
 
-func ParseRawRequest(rawRequest []byte) (*ParsedRawRequest, error) {
+type Options struct {
+	BlacklistedHeaders             HeaderKeySet
+	BlacklistedHeaderCaseSensitive bool
+}
+
+type HeaderKeySet map[string]struct{}
+
+func (h HeaderKeySet) Add(key string) {
+	h[key] = struct{}{}
+}
+
+func (h HeaderKeySet) Contains(key string) bool {
+	_, ok := h[key]
+	return ok
+}
+
+func (h HeaderKeySet) Append(headerKeySet HeaderKeySet) {
+	for k := range headerKeySet {
+		h.Add(k)
+	}
+}
+func (h HeaderKeySet) ContainsFold(key string) bool {
+	for k := range h {
+		if strings.EqualFold(k, key) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (h HeaderKeySet) Remove(key string) {
+	delete(h, key)
+}
+
+func (h HeaderKeySet) IsEmpty() bool {
+	return len(h) == 0
+}
+
+func NewOptions() Options {
+	return useOptions()
+}
+
+func useOptions(opts ...Options) Options {
+	option := Options{
+		BlacklistedHeaders:             make(HeaderKeySet),
+		BlacklistedHeaderCaseSensitive: false,
+	}
+	for _, opt := range opts {
+		option.BlacklistedHeaders.Append(opt.BlacklistedHeaders)
+		option.BlacklistedHeaderCaseSensitive = opt.BlacklistedHeaderCaseSensitive
+	}
+	return option
+}
+
+func headerKeyIsBlacklisted(key string, opts Options) bool {
+
+	if opts.BlacklistedHeaderCaseSensitive {
+		return opts.BlacklistedHeaders.ContainsFold(key)
+	}
+
+	return opts.BlacklistedHeaders.Contains(key)
+}
+
+func ParseRawRequest(rawRequest []byte, opts ...Options) (*ParsedRawRequest, error) {
+	opt := useOptions(opts...)
 	// Split the raw request into lines
 	scanner := bufio.NewScanner(bytes.NewReader(rawRequest))
 
@@ -85,6 +150,12 @@ func ParseRawRequest(rawRequest []byte) (*ParsedRawRequest, error) {
 		if err != nil {
 			return nil, fmt.Errorf("invalid raw request: %w", err)
 		}
+
+		if headerKeyIsBlacklisted(key, opt) {
+			// Skip the header if it is blacklisted
+			continue
+		}
+
 		headers = append(headers, ParsedHeader{
 			Key:   key,
 			Value: value,
@@ -121,10 +192,10 @@ func ParseRawRequest(rawRequest []byte) (*ParsedRawRequest, error) {
 	}, nil
 }
 
-func ParseRawRequestFromFile(filePath string) (*ParsedRawRequest, error) {
+func ParseRawRequestFromFile(filePath string, opts ...Options) (*ParsedRawRequest, error) {
 	rawRequest, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, err
 	}
-	return ParseRawRequest(rawRequest)
+	return ParseRawRequest(rawRequest, opts...)
 }

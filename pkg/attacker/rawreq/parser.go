@@ -121,6 +121,10 @@ func ParseRawRequest(rawRequest []byte, opts ...Options) (*ParsedRawRequest, err
 	// Split the raw request into lines
 	scanner := bufio.NewScanner(bytes.NewReader(rawRequest))
 
+	if len(rawRequest) > bufio.MaxScanTokenSize {
+		scanner.Buffer(make([]byte, 0, len(rawRequest)), len(rawRequest))
+	}
+
 	// Read the request line (first line)
 	if !scanner.Scan() {
 		return nil, errors.New("invalid raw request: invalid request line found")

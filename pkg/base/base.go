@@ -1,6 +1,9 @@
 package base
 
-import "github.com/kaitoz11/reqfuzzy/pkg/attacker"
+import (
+	"github.com/imroc/req/v3"
+	"github.com/kaitoz11/reqfuzzy/pkg/attacker"
+)
 
 type Api[T ~string] struct {
 	Client *attacker.HClient
@@ -33,4 +36,24 @@ func (a *Api[T]) SendRequest(apiName T, modifiers ...func(request attacker.Reque
 	}
 
 	return a.Client.SendRequestFromStore(reqContext, m)
+}
+
+func (a *Api[T]) GetFuzzer(apiName T) (attacker.FuzzerBuilder, error) {
+	// reqContext, err := a.ApiStore.GetRequestContext(string(apiName))
+	// if err != nil {
+	// 	return nil, err
+	// }
+	//
+	// request, err := attacker.FromParsedRawRequestAdapter(a.Client, reqContext.ParsedRequest)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	//
+	// fuzzer := attacker.NewFuzzerBuilder(
+	// 	a.Client,
+	// 	attacker.Request{request},
+	// )
+	//
+	// return fuzzer, nil
+	return nil, nil
 }

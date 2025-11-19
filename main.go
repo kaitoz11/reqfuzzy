@@ -7,26 +7,40 @@ import (
 )
 
 func main() {
-	rawRequest := []byte("GET /df?df=dfdsa&ggg=zzz#sdf HTTP/1.1\r\nHost: example.com\r\n\r\n")
+	rawRequest := []byte("GET /df?df=dfdsa&ggg=zzz#sdf HTTP/1.1\r\nHost: 127.0.0.1:8989\r\n\r\n")
 
 	client := attacker.NewHClient()
 	// client.UseProxy("http://127.0.0.1:8080", "./burp.pem")
 	client.UseColor(attacker.Red)
-	client.UseBaseURL("https://example.com")
+	client.UseBaseURL("http://127.0.0.1:8989")
 
 	request, err := client.ParseRawRequest(rawRequest)
 	if err != nil {
 		fmt.Println("Error parsing request:", err)
 		return
 	}
-	fmt.Println("Parsed Request:", request)
+	// fmt.Println("Parsed Request:", string(request))
 
-	response, err := client.SendRequest(request)
+	// response, err := client.SendRequest(request)
+	// if err != nil {
+	// 	fmt.Println("Error sending request:", err)
+	// 	return
+	// }
+	//
+	// fmt.Println("Response Status Code:", response.StatusCode)
+	// fmt.Println("Response Body:", response.String())
+
+	fuzzer := attacker.NewFuzzerBuilder(client, request)
+	fuzzer.AddInjector(func(request attacker.Request) error {
+		// request.SetQueryParam("df", "123456")
+		return nil
+	})
+	fuzzer.AddInjector(func(request attacker.Request) error {
+		// request.SetQueryParam("df", "123453")
+		return nil
+	})
+	err = fuzzer.Build().Fuzz()
 	if err != nil {
-		fmt.Println("Error sending request:", err)
-		return
+		panic(err)
 	}
-
-	fmt.Println("Response Status Code:", response.StatusCode)
-	fmt.Println("Response Body:", response.String())
 }

@@ -12,6 +12,21 @@ type Request struct {
 	*req.Request
 }
 
+func (r Request) Copy(client *req.Client) Request {
+	request := client.R()
+
+	request.Method = r.Method
+	request.SetURL(r.RawURL)
+
+	request.Headers = r.Headers.Clone()
+
+	request.SetContextData(rawreq.RequestBodyType, r.GetContextData(rawreq.RequestBodyType))
+
+	request.SetBodyBytes(r.Body)
+
+	return Request{Request: request}
+}
+
 func (r *Request) UpdateJsonBody(key string, value any) (err error) {
 	if r.GetContextData(rawreq.RequestBodyType).(rawreq.BodyType) != rawreq.Json {
 		return fmt.Errorf("request body is not json")

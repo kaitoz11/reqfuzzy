@@ -1,7 +1,6 @@
 package base
 
 import (
-	"github.com/imroc/req/v3"
 	"github.com/kaitoz11/reqfuzzy/pkg/attacker"
 )
 

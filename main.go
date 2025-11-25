@@ -7,12 +7,12 @@ import (
 )
 
 func main() {
-	rawRequest := []byte("GET /df?df=dfdsa&ggg=zzz#sdf HTTP/1.1\r\nHost: 127.0.0.1:8989\r\n\r\n")
+	rawRequest := []byte("GET /df?df=dfdsa&ggg=zzz#sdf HTTP/1.1\r\nHost: example.com\r\n\r\n")
 
 	client := attacker.NewHClient()
-	// client.UseProxy("http://127.0.0.1:8080", "./burp.pem")
+	client.UseProxy("http://127.0.0.1:8080", "/home/k4it0z11/security-toolbox/burp/cert.pem")
 	client.UseColor(attacker.Red)
-	client.UseBaseURL("http://127.0.0.1:8989")
+	client.UseBaseURL("https://example.com")
 
 	request, err := client.ParseRawRequest(rawRequest)
 	if err != nil {
@@ -32,11 +32,11 @@ func main() {
 
 	fuzzer := attacker.NewFuzzerBuilder(client, request)
 	fuzzer.AddInjector(func(request attacker.Request) error {
-		// request.SetQueryParam("df", "123456")
+		request.SetQueryParam("df", "123456")
 		return nil
 	})
 	fuzzer.AddInjector(func(request attacker.Request) error {
-		// request.SetQueryParam("df", "123453")
+		request.SetQueryParam("df", "123453")
 		return nil
 	})
 	err = fuzzer.Build().Fuzz()

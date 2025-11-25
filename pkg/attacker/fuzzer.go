@@ -63,8 +63,7 @@ func (f *FuzzerClient) Fuzz() error {
 	// fuzz the request
 	for _, injector := range f.injectors {
 		fmt.Println("i")
-		interceptedRequest := f.request
-
+		interceptedRequest := f.request.Copy(f.client.httpClient)
 		f.modifier(interceptedRequest)
 		injector(interceptedRequest)
 		_, err := f.client.SendRequest(interceptedRequest)

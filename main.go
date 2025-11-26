@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/kaitoz11/reqfuzzy/pkg/attacker"
 )
@@ -35,12 +36,31 @@ func main() {
 		request.SetQueryParam("df", "123456")
 		return nil
 	})
-	fuzzer.AddInjector(func(request attacker.Request) error {
-		request.SetQueryParam("df", "123453")
-		return nil
-	})
-	err = fuzzer.Build().Fuzz()
+	for i := range 100 {
+		fuzzer.AddInjector(func(request attacker.Request) error {
+			request.SetQueryParam("df", fmt.Sprintf("123453-%d", i))
+			return nil
+		})
+	}
+	fuzzy, err := fuzzer.Build()
 	if err != nil {
 		panic(err)
 	}
+
+	fuzzy.Fuzz()
+	//
+	// go func() {
+	// 	time.Sleep(time.Second * 20)
+	// 	fuzzy.PauseFuzzing()
+	// 	fmt.Println("Fuzzing Paused")
+	// 	time.Sleep(time.Second * 10)
+	// 	fuzzy.Fuzz(func(config *attacker.FuzzingConfig) {
+	// 		config.RateLimiter = time.Millisecond * 100
+	// 	})
+	// }()
+	//
+	// for {
+	// 	time.Sleep(time.Second * 1)
+	// 	fuzzy.PrintFuzzingResult()
+	// }
 }

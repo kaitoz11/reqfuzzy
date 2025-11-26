@@ -46,6 +46,7 @@ type FuzzingResultEntry struct {
 
 type FuzzerBuilder interface {
 	AddInjector(injector func(request Request) error) FuzzerBuilder
+	AddExtractor(extractor func(response Response) string) FuzzerBuilder
 	WithBaseModifiers(modifiers ...func(request Request) error) FuzzerBuilder
 	Build() (Fuzzer, error)
 }
@@ -184,7 +185,7 @@ func (f *FuzzerClient) PrintFuzzingResult() {
 	t.AppendHeader(table.Row{"#", "status", "length", "Extracted", "Time"})
 	for i, r := range f.results {
 		if r.Done {
-			t.AppendRow(table.Row{i, r.Response.Status, r.Response.ContentLength, r.Extracted, r.Response.TotalTime().String()})
+			t.AppendRow(table.Row{i, r.Response.StatusCode, r.Response.ContentLength, r.Extracted, r.Response.TotalTime().String()})
 		}
 	}
 	t.Render()

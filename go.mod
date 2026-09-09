@@ -5,6 +5,7 @@ go 1.24
 toolchain go1.24.4
 
 require (
+	github.com/google/uuid v1.6.0
 	github.com/imroc/req/v3 v3.54.0
 	github.com/jedib0t/go-pretty/v6 v6.6.7
 	github.com/pquerna/otp v1.5.0

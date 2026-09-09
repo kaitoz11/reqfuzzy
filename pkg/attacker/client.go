@@ -36,6 +36,10 @@ func (c *HClient) SetUser(user *actor.Actor) {
 	c.user = user
 }
 
+func (c *HClient) GetUser() *actor.Actor {
+	return c.user
+}
+
 func (c *HClient) UseProxy(url, certfile string) {
 	// TODO: check if the URL is valid
 	c.httpClient.SetProxyURL(url)

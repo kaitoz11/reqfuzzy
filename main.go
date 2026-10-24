@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/kaitoz11/reqfuzzy/pkg/attacker"
 )

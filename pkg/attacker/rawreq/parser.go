@@ -120,12 +120,14 @@ func ParseRawRequest(rawRequest []byte, opts ...Options) (*ParsedRawRequest, err
 	opt := useOptions(opts...)
 	headerBytes := rawRequest
 	var bodyBytes []byte
-	if separator := bytes.Index(rawRequest, []byte("\r\n\r\n")); separator >= 0 {
-		headerBytes = rawRequest[:separator]
-		bodyBytes = rawRequest[separator+4:]
-	} else if separator := bytes.Index(rawRequest, []byte("\n\n")); separator >= 0 {
-		headerBytes = rawRequest[:separator]
-		bodyBytes = rawRequest[separator+2:]
+	crlfSeparator := bytes.Index(rawRequest, []byte("\r\n\r\n"))
+	lfSeparator := bytes.Index(rawRequest, []byte("\n\n"))
+	if crlfSeparator >= 0 && (lfSeparator < 0 || crlfSeparator < lfSeparator) {
+		headerBytes = rawRequest[:crlfSeparator]
+		bodyBytes = rawRequest[crlfSeparator+4:]
+	} else if lfSeparator >= 0 {
+		headerBytes = rawRequest[:lfSeparator]
+		bodyBytes = rawRequest[lfSeparator+2:]
 	}
 
 	scanner := bufio.NewScanner(bytes.NewReader(headerBytes))

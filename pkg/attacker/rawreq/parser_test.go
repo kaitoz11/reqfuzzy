@@ -34,6 +34,18 @@ func TestParseMultilineBody(t *testing.T) {
 			t.Fatalf("body = %v, want %v", parsed.Body, body)
 		}
 	})
+
+	t.Run("LF headers with CRLF separator bytes in body", func(t *testing.T) {
+		body := []byte{0, '\r', '\n', '\r', '\n', 255}
+		raw := append([]byte("POST /upload HTTP/1.1\nHost: example.test\n\n"), body...)
+		parsed, err := rawreq.ParseRawRequest(raw)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(parsed.Body, body) {
+			t.Fatalf("body = %v, want %v", parsed.Body, body)
+		}
+	})
 }
 
 func TestParseRawRequest(t *testing.T) {

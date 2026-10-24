@@ -9,6 +9,8 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
+	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -58,6 +60,145 @@ func TestRunnerBindsLargeJSONNumberWithoutPrecisionLoss(t *testing.T) {
 	}
 }
 
+func TestRunnerHeaderBindingReplacesCapturedValue(t *testing.T) {
+	var authorization []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/source" {
+			fmt.Fprint(w, `{"token":"fresh"}`)
+			return
+		}
+		authorization = r.Header.Values("Authorization")
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+	store := attacker.NewRequestStore()
+	registerRawRequest(t, store, "source", "GET /source HTTP/1.1\r\nHost: example.test\r\n\r\n")
+	registerRawRequest(t, store, "target", "GET /target HTTP/1.1\r\nHost: example.test\r\nauthorization: stale\r\n\r\n")
+	definition := flow.Flow{Name: "replace-header", Steps: []flow.Step{
+		{ID: "source", Request: "source", Extract: []flow.Extraction{{Name: "token", JSONPath: "token"}}},
+		{ID: "target", Request: "target", Bind: []flow.Binding{{Location: "header", Path: "Authorization", Variable: "token"}}},
+	}}
+	runner := flow.Runner{Store: store, NewClient: func(string) (*attacker.HClient, error) {
+		client := attacker.NewHClient()
+		client.UseBaseURL(server.URL)
+		return client, nil
+	}}
+	if _, err := runner.Run(context.Background(), definition, nil); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(authorization, []string{"fresh"}) {
+		t.Fatalf("Authorization values = %q, want [fresh]", authorization)
+	}
+}
+
+func TestRunnerQueryBindingReplacesCapturedValue(t *testing.T) {
+	var ids []string
+	var rawQuery string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/source" {
+			fmt.Fprint(w, `{"id":"new"}`)
+			return
+		}
+		ids = r.URL.Query()["id"]
+		rawQuery = r.URL.RawQuery
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+	store := attacker.NewRequestStore()
+	registerRawRequest(t, store, "source", "GET /source HTTP/1.1\r\nHost: example.test\r\n\r\n")
+	registerRawRequest(t, store, "target", "GET /target?z=hello%20world&id=old&id=older&a=%2F HTTP/1.1\r\nHost: example.test\r\n\r\n")
+	definition := flow.Flow{Name: "replace-query", Steps: []flow.Step{
+		{ID: "source", Request: "source", Extract: []flow.Extraction{{Name: "id", JSONPath: "id"}}},
+		{ID: "target", Request: "target", Bind: []flow.Binding{{Location: "query", Path: "id", Variable: "id"}}},
+	}}
+	runner := flow.Runner{Store: store, NewClient: func(string) (*attacker.HClient, error) {
+		client := attacker.NewHClient()
+		client.UseBaseURL(server.URL)
+		return client, nil
+	}}
+	if _, err := runner.Run(context.Background(), definition, nil); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(ids, []string{"new"}) {
+		t.Fatalf("id query values = %q, want [new]", ids)
+	}
+	if rawQuery != "z=hello%20world&id=new&a=%2F" {
+		t.Fatalf("raw query = %q, want original order and unrelated encodings", rawQuery)
+	}
+}
+
+func TestRunnerUsesCurrentSessionCookieInsteadOfCapturedCookie(t *testing.T) {
+	var cookieValues []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/login" {
+			http.SetCookie(w, &http.Cookie{Name: "sid", Value: "fresh", Path: "/"})
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		for _, cookie := range r.Cookies() {
+			if cookie.Name == "sid" {
+				cookieValues = append(cookieValues, cookie.Value)
+			}
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+	store := attacker.NewRequestStore()
+	registerRawRequest(t, store, "login", "GET /login HTTP/1.1\r\nHost: example.test\r\n\r\n")
+	registerRawRequest(t, store, "target", "GET /target HTTP/1.1\r\nHost: example.test\r\nCookie: sid=stale\r\n\r\n")
+	definition := flow.Flow{Name: "fresh-cookie", Steps: []flow.Step{{ID: "login", Request: "login"}, {ID: "target", Request: "target"}}}
+	runner := flow.Runner{Store: store, NewClient: func(string) (*attacker.HClient, error) {
+		client := attacker.NewHClient()
+		client.UseBaseURL(server.URL)
+		return client, nil
+	}}
+	if _, err := runner.Run(context.Background(), definition, nil); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(cookieValues, []string{"fresh"}) {
+		t.Fatalf("sid cookies = %q, want current session only", cookieValues)
+	}
+}
+
+func TestRunnerDoesNotMutateCachedRawBodyAcrossRuns(t *testing.T) {
+	var mu sync.Mutex
+	var bodies []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		mu.Lock()
+		bodies = append(bodies, string(body))
+		mu.Unlock()
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+	store := attacker.NewRequestStore()
+	registerRawRequest(t, store, "target", "POST /target HTTP/1.1\r\nHost: example.test\r\nContent-Type: application/json\r\n\r\n{\"amount\":10}")
+	definition := flow.Flow{Name: "body-isolation", Steps: []flow.Step{{ID: "target", Request: "target", BeforeSend: "morph"}}}
+	hookCalls := 0
+	runner := flow.Runner{Store: store, NewClient: func(string) (*attacker.HClient, error) {
+		client := attacker.NewHClient()
+		client.UseBaseURL(server.URL)
+		return client, nil
+	}, BeforeSend: map[string]flow.BeforeSend{"morph": func(request attacker.Request, _ flow.Variables) error {
+		hookCalls++
+		if hookCalls == 1 {
+			request.Body[11] = '9'
+		}
+		return nil
+	}}}
+	if _, err := runner.Run(context.Background(), definition, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runner.Run(context.Background(), definition, nil); err != nil {
+		t.Fatal(err)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if !reflect.DeepEqual(bodies, []string{`{"amount":19}`, `{"amount":10}`}) {
+		t.Fatalf("sent bodies = %q, want isolated first mutation", bodies)
+	}
+}
+
 func TestRunnerPreflightsMissingRequestBeforeSending(t *testing.T) {
 	var sent atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -73,10 +214,13 @@ func TestRunnerPreflightsMissingRequestBeforeSending(t *testing.T) {
 		client.UseBaseURL(server.URL)
 		return client, nil
 	}}
-	_, err := runner.Run(context.Background(), definition, nil)
+	result, err := runner.Run(context.Background(), definition, nil)
 	var stepErr *flow.StepError
 	if !errors.As(err, &stepErr) || stepErr.StepID != "second" || stepErr.Kind != flow.RequestError {
 		t.Fatalf("error = %v, want missing request at second step", err)
+	}
+	if result.FailedStepID != "second" {
+		t.Fatalf("failed step = %q, want second", result.FailedStepID)
 	}
 	if sent.Load() != 0 {
 		t.Fatalf("sent %d requests before preflight completed", sent.Load())
@@ -100,6 +244,30 @@ func TestRunnerPreflightsUnknownHookBeforeSending(t *testing.T) {
 	_, err := runner.Run(context.Background(), definition, nil)
 	var stepErr *flow.StepError
 	if !errors.As(err, &stepErr) || stepErr.StepID != "second" || stepErr.Kind != flow.HookError || sent.Load() != 0 {
+		t.Fatalf("error = %v, requests sent = %d", err, sent.Load())
+	}
+}
+
+func TestRunnerPreflightsActorClientBeforeSending(t *testing.T) {
+	var sent atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sent.Add(1)
+	}))
+	defer server.Close()
+	store := attacker.NewRequestStore()
+	registerRawRequest(t, store, "one", "GET /one HTTP/1.1\r\nHost: example.test\r\n\r\n")
+	definition := flow.Flow{Name: "actors", Steps: []flow.Step{{ID: "first", Request: "one", Actor: "attacker"}, {ID: "second", Request: "one", Actor: "victim"}}}
+	runner := flow.Runner{Store: store, NewClient: func(actor string) (*attacker.HClient, error) {
+		if actor == "victim" {
+			return nil, fmt.Errorf("no victim client")
+		}
+		client := attacker.NewHClient()
+		client.UseBaseURL(server.URL)
+		return client, nil
+	}}
+	_, err := runner.Run(context.Background(), definition, nil)
+	var stepErr *flow.StepError
+	if !errors.As(err, &stepErr) || stepErr.StepID != "second" || stepErr.Kind != flow.ClientError || sent.Load() != 0 {
 		t.Fatalf("error = %v, requests sent = %d", err, sent.Load())
 	}
 }
@@ -210,6 +378,29 @@ func TestRunnerStopsWhenExtractionIsMissing(t *testing.T) {
 	}
 	if len(result.Steps) != 1 || result.Steps[0].StatusCode != http.StatusOK || result.FailedStepID != "source" {
 		t.Fatalf("partial result = %#v", result)
+	}
+}
+
+func TestRunnerTraceIncludesExtractsBeforeLaterExtractFailure(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{"first":1}`)
+	}))
+	defer server.Close()
+	store := attacker.NewRequestStore()
+	registerRawRequest(t, store, "source", "GET /source HTTP/1.1\r\nHost: example.test\r\n\r\n")
+	definition := flow.Flow{Name: "partial-extract", Steps: []flow.Step{{ID: "source", Request: "source", Extract: []flow.Extraction{{Name: "one", JSONPath: "first"}, {Name: "two", JSONPath: "missing"}}}}}
+	runner := flow.Runner{Store: store, NewClient: func(string) (*attacker.HClient, error) {
+		client := attacker.NewHClient()
+		client.UseBaseURL(server.URL)
+		return client, nil
+	}}
+	result, err := runner.Run(context.Background(), definition, nil)
+	var stepErr *flow.StepError
+	if !errors.As(err, &stepErr) || stepErr.Kind != flow.ExtractionError {
+		t.Fatalf("error = %v, want extraction error", err)
+	}
+	if string(result.Variables["one"].RawJSON) != "1" || len(result.Steps) != 1 || string(result.Steps[0].Extracted["one"].RawJSON) != "1" {
+		t.Fatalf("variable and trace disagree: %#v", result)
 	}
 }
 

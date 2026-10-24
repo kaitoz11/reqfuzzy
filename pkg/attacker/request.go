@@ -1,6 +1,7 @@
 package attacker
 
 import (
+	"bytes"
 	"fmt"
 
 	"github.com/imroc/req/v3"
@@ -72,7 +73,7 @@ func FromParsedRawRequestAdapter(client *req.Client, parsedRawRequest *rawreq.Pa
 
 	request.SetContextData(rawreq.RequestBodyType, parsedRawRequest.BodyType)
 
-	request.SetBodyBytes(parsedRawRequest.Body)
+	request.SetBodyBytes(bytes.Clone(parsedRawRequest.Body))
 
 	return request, nil
 }

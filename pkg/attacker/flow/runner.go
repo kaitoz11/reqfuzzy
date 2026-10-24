@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"strings"
 
 	"github.com/kaitoz11/reqfuzzy/pkg/attacker"
 	"github.com/kaitoz11/reqfuzzy/pkg/attacker/rawreq"
@@ -39,30 +40,19 @@ func (r Runner) Run(ctx context.Context, definition Flow, mutation *StepMutation
 	}
 
 	contexts := make(map[string]*attacker.RequestContext, len(definition.Steps))
+	clients := make(map[string]*attacker.HClient)
 	for _, step := range definition.Steps {
 		requestContext, err := r.Store.GetRequestContext(step.Request)
 		if err != nil {
-			return result, &StepError{Kind: RequestError, StepID: step.ID, Err: err}
+			return failRun(result, step.ID, RequestError, err)
 		}
 		contexts[step.Request] = requestContext
 		if step.BeforeSend != "" && r.BeforeSend[step.BeforeSend] == nil {
-			return result, &StepError{Kind: HookError, StepID: step.ID, Err: fmt.Errorf("hook %q not registered", step.BeforeSend)}
+			return failRun(result, step.ID, HookError, fmt.Errorf("hook %q not registered", step.BeforeSend))
 		}
-	}
-
-	clients := make(map[string]*attacker.HClient)
-	for _, step := range definition.Steps {
-		actor := step.Actor
-		if actor == "" {
-			actor = "default"
-		}
-		if err := ctx.Err(); err != nil {
-			return failRun(result, step.ID, TransportError, err)
-		}
-		client := clients[actor]
-		if client == nil {
-			var err error
-			client, err = r.NewClient(actor)
+		actor := actorName(step)
+		if clients[actor] == nil {
+			client, err := r.NewClient(actor)
 			if err != nil {
 				return failRun(result, step.ID, ClientError, err)
 			}
@@ -71,9 +61,22 @@ func (r Runner) Run(ctx context.Context, definition Flow, mutation *StepMutation
 			}
 			clients[actor] = client
 		}
+	}
+
+	for _, step := range definition.Steps {
+		actor := actorName(step)
+		if err := ctx.Err(); err != nil {
+			return failRun(result, step.ID, TransportError, err)
+		}
+		client := clients[actor]
 		request, err := client.NewRequestFromParsed(contexts[step.Request].ParsedRequest)
 		if err != nil {
 			return failRun(result, step.ID, RequestError, err)
+		}
+		for key := range request.Headers {
+			if strings.EqualFold(key, "Cookie") {
+				delete(request.Headers, key)
+			}
 		}
 		request.SetContext(ctx)
 		request.SetContextData(rawreq.RequestBodyType, contexts[step.Request].ParsedRequest.BodyType)
@@ -125,6 +128,13 @@ func (r Runner) Run(ctx context.Context, definition Flow, mutation *StepMutation
 	return result, nil
 }
 
+func actorName(step Step) string {
+	if step.Actor == "" {
+		return "default"
+	}
+	return step.Actor
+}
+
 func (r Runner) Compare(ctx context.Context, definition Flow, mutation StepMutation) (ComparisonResult, error) {
 	comparison := ComparisonResult{MutationStepID: mutation.StepID}
 	if err := Validate(definition); err != nil {
@@ -165,9 +175,19 @@ func failRun(result RunResult, stepID string, kind ErrorKind, err error) (RunRes
 func bindValue(request attacker.Request, binding Binding, value Value) error {
 	switch binding.Location {
 	case "header":
+		for key := range request.Headers {
+			if strings.EqualFold(key, binding.Path) {
+				delete(request.Headers, key)
+			}
+		}
 		request.SetHeaderNonCanonical(binding.Path, value.Text)
 	case "query":
-		request.SetQueryParam(binding.Path, value.Text)
+		updated, err := replaceQueryValue(request.RawURL, binding.Path, value.Text)
+		if err != nil {
+			return err
+		}
+		request.QueryParams.Del(binding.Path)
+		request.SetURL(updated)
 	case "json":
 		if !gjson.ValidBytes(request.Body) {
 			return fmt.Errorf("request body is not JSON")
@@ -181,6 +201,39 @@ func bindValue(request attacker.Request, binding Binding, value Value) error {
 		return fmt.Errorf("unsupported binding location %q", binding.Location)
 	}
 	return nil
+}
+
+func replaceQueryValue(rawURL, key, value string) (string, error) {
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return "", fmt.Errorf("parse request URL: %w", err)
+	}
+	parts := strings.Split(parsed.RawQuery, "&")
+	replaced := false
+	kept := make([]string, 0, len(parts)+1)
+	for _, part := range parts {
+		if part == "" {
+			continue
+		}
+		rawKey, _, _ := strings.Cut(part, "=")
+		decodedKey, err := url.QueryUnescape(rawKey)
+		if err != nil {
+			return "", fmt.Errorf("decode query key %q: %w", rawKey, err)
+		}
+		if decodedKey != key {
+			kept = append(kept, part)
+			continue
+		}
+		if !replaced {
+			kept = append(kept, rawKey+"="+url.QueryEscape(value))
+			replaced = true
+		}
+	}
+	if !replaced {
+		kept = append(kept, url.QueryEscape(key)+"="+url.QueryEscape(value))
+	}
+	parsed.RawQuery = strings.Join(kept, "&")
+	return parsed.String(), nil
 }
 
 func snapshot(request attacker.Request) RequestSnapshot {

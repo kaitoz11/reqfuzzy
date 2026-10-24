@@ -63,6 +63,8 @@ steps:
 
 `json` uses `gjson` paths for extraction and `sjson` paths for binding. A JSON binding preserves the captured value's type and numeric precision. `header` and `query` bindings use its text form. A missing variable, missing scalar, unknown request, or unmet status stops the run and returns the completed trace.
 
+Header bindings replace any captured header with the same name regardless of case. Query bindings replace all captured values for that key while keeping unrelated query entries and their original encodings. The runner drops captured `Cookie` headers so each actor's client jar supplies cookies issued during the current run. If a flow starts with an existing session, configure that actor's client or a request hook to provide it.
+
 ## Run a comparison
 
 The Go program below assumes a local API at `http://127.0.0.1:8080`. The `sign` hook runs after the mutation, so it hashes the exact body being sent.
@@ -122,4 +124,4 @@ func main() {
 
 `Runner.Run` is available when only one execution is needed. Its optional `StepMutation` targets exactly one step. `Runner.Compare` always replays prerequisite steps in both runs. A client factory can select different accounts with `actor`, while reusing each account's client within one run.
 
-Results contain prepared request headers and bodies in memory. Treat them as sensitive when printing or persisting them. Raw request files alone can be used to author a flow; automatic flow inference will need captured responses as well.
+Results contain request headers and bodies as prepared by the flow and hooks, before the HTTP transport adds jar cookies, plus the received response body. Treat them as sensitive when printing or persisting them. Raw request files alone can be used to author a flow; automatic flow inference will need captured responses as well.

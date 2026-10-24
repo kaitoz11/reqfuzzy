@@ -83,6 +83,27 @@ func TestRunnerPreflightsMissingRequestBeforeSending(t *testing.T) {
 	}
 }
 
+func TestRunnerPreflightsUnknownHookBeforeSending(t *testing.T) {
+	var sent atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sent.Add(1)
+	}))
+	defer server.Close()
+	store := attacker.NewRequestStore()
+	registerRawRequest(t, store, "one", "GET /one HTTP/1.1\r\nHost: example.test\r\n\r\n")
+	definition := flow.Flow{Name: "preflight", Steps: []flow.Step{{ID: "first", Request: "one"}, {ID: "second", Request: "one", BeforeSend: "missing"}}}
+	runner := flow.Runner{Store: store, NewClient: func(string) (*attacker.HClient, error) {
+		client := attacker.NewHClient()
+		client.UseBaseURL(server.URL)
+		return client, nil
+	}}
+	_, err := runner.Run(context.Background(), definition, nil)
+	var stepErr *flow.StepError
+	if !errors.As(err, &stepErr) || stepErr.StepID != "second" || stepErr.Kind != flow.HookError || sent.Load() != 0 {
+		t.Fatalf("error = %v, requests sent = %d", err, sent.Load())
+	}
+}
+
 func TestRunnerStopsOnStatusAndKeepsTrace(t *testing.T) {
 	var sent atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

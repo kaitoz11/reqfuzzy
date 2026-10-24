@@ -1,10 +1,40 @@
 package rawreq_test
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/kaitoz11/reqfuzzy/pkg/attacker/rawreq"
 )
+
+func TestParseMultilineBody(t *testing.T) {
+	t.Run("multiline JSON", func(t *testing.T) {
+		body := []byte("{\n  \"name\": \"a\"\n}\n")
+		raw := append([]byte("POST /items HTTP/1.1\r\nHost: example.test\r\nContent-Type: application/json\r\n\r\n"), body...)
+		parsed, err := rawreq.ParseRawRequest(raw)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(parsed.Body, body) {
+			t.Fatalf("body = %q, want %q", parsed.Body, body)
+		}
+		if parsed.BodyType != rawreq.Json {
+			t.Fatalf("body type = %v, want JSON", parsed.BodyType)
+		}
+	})
+
+	t.Run("binary body", func(t *testing.T) {
+		body := []byte{0, 10, 255}
+		raw := append([]byte("POST /upload HTTP/1.1\nHost: example.test\n\n"), body...)
+		parsed, err := rawreq.ParseRawRequest(raw)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(parsed.Body, body) {
+			t.Fatalf("body = %v, want %v", parsed.Body, body)
+		}
+	})
+}
 
 func TestParseRawRequest(t *testing.T) {
 	t.Run("Parse raw request", normalRequestParse)

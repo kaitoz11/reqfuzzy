@@ -6,6 +6,7 @@ import (
 	"net/url"
 
 	"github.com/kaitoz11/reqfuzzy/pkg/attacker"
+	"github.com/kaitoz11/reqfuzzy/pkg/attacker/rawreq"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 )
@@ -33,17 +34,8 @@ func (r Runner) Run(ctx context.Context, definition Flow, mutation *StepMutation
 	if r.Store == nil || r.NewClient == nil {
 		return result, &StepError{Kind: InvalidFlowError, Err: fmt.Errorf("request store and client factory are required")}
 	}
-	if mutation != nil {
-		if mutation.Apply == nil {
-			return result, &StepError{Kind: InvalidFlowError, Err: fmt.Errorf("mutation callback is required")}
-		}
-		found := false
-		for _, step := range definition.Steps {
-			found = found || step.ID == mutation.StepID
-		}
-		if !found {
-			return result, &StepError{Kind: InvalidFlowError, Err: fmt.Errorf("mutation step %q not found", mutation.StepID)}
-		}
+	if err := validateMutation(definition, mutation); err != nil {
+		return result, &StepError{Kind: InvalidFlowError, Err: err}
 	}
 
 	contexts := make(map[string]*attacker.RequestContext, len(definition.Steps))
@@ -84,6 +76,7 @@ func (r Runner) Run(ctx context.Context, definition Flow, mutation *StepMutation
 			return failRun(result, step.ID, RequestError, err)
 		}
 		request.SetContext(ctx)
+		request.SetContextData(rawreq.RequestBodyType, contexts[step.Request].ParsedRequest.BodyType)
 		for _, binding := range step.Bind {
 			value := result.Variables[binding.Variable]
 			if err := bindValue(request, binding, value); err != nil {
@@ -130,6 +123,38 @@ func (r Runner) Run(ctx context.Context, definition Flow, mutation *StepMutation
 		result.Steps[len(result.Steps)-1] = trace
 	}
 	return result, nil
+}
+
+func (r Runner) Compare(ctx context.Context, definition Flow, mutation StepMutation) (ComparisonResult, error) {
+	comparison := ComparisonResult{MutationStepID: mutation.StepID}
+	if err := Validate(definition); err != nil {
+		return comparison, &StepError{Kind: InvalidFlowError, Err: err}
+	}
+	if err := validateMutation(definition, &mutation); err != nil {
+		return comparison, &StepError{Kind: InvalidFlowError, Err: err}
+	}
+	var err error
+	comparison.Baseline, err = r.Run(ctx, definition, nil)
+	if err != nil {
+		return comparison, err
+	}
+	comparison.Mutated, err = r.Run(ctx, definition, &mutation)
+	return comparison, err
+}
+
+func validateMutation(definition Flow, mutation *StepMutation) error {
+	if mutation == nil {
+		return nil
+	}
+	if mutation.Apply == nil {
+		return fmt.Errorf("mutation callback is required")
+	}
+	for _, step := range definition.Steps {
+		if step.ID == mutation.StepID {
+			return nil
+		}
+	}
+	return fmt.Errorf("mutation step %q not found", mutation.StepID)
 }
 
 func failRun(result RunResult, stepID string, kind ErrorKind, err error) (RunResult, error) {

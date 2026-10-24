@@ -31,6 +31,12 @@ type RunResult struct {
 	FailedStepID string
 }
 
+type ComparisonResult struct {
+	MutationStepID string
+	Baseline       RunResult
+	Mutated        RunResult
+}
+
 type ErrorKind string
 
 const (

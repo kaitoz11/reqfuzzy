@@ -65,7 +65,7 @@ The loader validates syntax, duplicate IDs, and variable references. The runner 
 ```go
 type ClientFactory func(actor string) (*attacker.HClient, error)
 type BeforeSend func(request attacker.Request, variables Variables) error
-type Mutation func(request attacker.Request) error
+type Mutation func(request attacker.Request, variables Variables) error
 
 type Runner struct {
     Store         *attacker.RequestStore
@@ -78,7 +78,7 @@ func (r Runner) Run(ctx context.Context, flow Flow, mutation *StepMutation) (Run
 func (r Runner) Compare(ctx context.Context, flow Flow, mutation StepMutation) (ComparisonResult, error)
 ```
 
-`StepMutation` has a `StepID` and `Apply Mutation`. `Run` constructs a new client for each actor when first used, loads each named raw request, and creates a fresh request object. Each step applies bindings, then the optional mutation, then `before_send`, then sends the request. It extracts variables and checks the status before proceeding. A mutation applies exactly once at its matching step. An unknown mutation step ID fails validation before any network call. The final hook always sees the mutation.
+`StepMutation` has a `StepID` and `Apply Mutation`. The mutation callback receives the variables extracted by preceding steps. `Run` constructs a new client for each actor when first used, loads each named raw request, and creates a fresh request object. Each step applies bindings, then the optional mutation, then `before_send`, then sends the request. It checks the expected status and extracts variables before proceeding. A mutation applies exactly once at its matching step. An unknown mutation step ID fails validation before any network call. The final hook always sees the mutation.
 
 `Compare` performs an unchanged run followed by a mutated run. It calls `NewClient` again for every actor in the second run, so cookies and client state do not cross runs. Business data on the target may still persist; each run must create its own resources or the flow author must provide cleanup. The comparison reports the two outcomes without claiming that a difference is a vulnerability.
 

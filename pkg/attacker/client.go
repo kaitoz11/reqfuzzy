@@ -88,6 +88,15 @@ func (c *HClient) ParseRawRequest(rawRequest []byte) (Request, error) {
 	return Request{request}, nil
 }
 
+// NewRequestFromParsed creates a fresh request for this client's transport.
+func (c *HClient) NewRequestFromParsed(parsed *rawreq.ParsedRawRequest) (Request, error) {
+	request, err := FromParsedRawRequestAdapter(c.httpClient, parsed)
+	if err != nil {
+		return Request{}, err
+	}
+	return Request{Request: request}, nil
+}
+
 func (c *HClient) SendRequestFromStore(req *RequestContext, modifier func(request Request) error) (Response, error) {
 	request, err := FromParsedRawRequestAdapter(c.httpClient, req.ParsedRequest)
 	if err != nil {

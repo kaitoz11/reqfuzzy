@@ -53,6 +53,7 @@ steps:
 - `actor` selects a client by name; omission means `default`. A client factory supplies a new client per actor for each run, and steps for one actor share its cookie jar within that run.
 - `extract` reads one scalar JSON value from the response with `gjson` path syntax. A missing path, JSON object, or array fails the step. The extracted value keeps its JSON type and raw number representation. Variable names are unique within a flow; a duplicate is rejected before execution.
 - `bind` refers to an earlier extracted variable. `location` is `header`, `query`, or `json`. `path` is the header name, query key, or `sjson` path. Missing variables and invalid locations fail before send. JSON binding preserves the extracted JSON type; header and query binding use its string form.
+- A `json` binding requires an existing valid JSON request body. It fails before send when the body is plain or malformed text.
 - `expect_status`, when set, requires that exact HTTP status. An unmet expectation stops the run and names the step. A step without it accepts any HTTP status for subsequent extraction.
 - `before_send` names a Go callback registered by the caller. An unknown name fails before send. The hook receives the current request and run variables and may alter the request; hook errors stop the run.
 

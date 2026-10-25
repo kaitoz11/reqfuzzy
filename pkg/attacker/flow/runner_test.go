@@ -116,7 +116,8 @@ func TestRunnerQueryBindingReplacesCapturedValue(t *testing.T) {
 		client.UseBaseURL(server.URL)
 		return client, nil
 	}}
-	if _, err := runner.Run(context.Background(), definition, nil); err != nil {
+	result, err := runner.Run(context.Background(), definition, nil)
+	if err != nil {
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(ids, []string{"new"}) {
@@ -124,6 +125,9 @@ func TestRunnerQueryBindingReplacesCapturedValue(t *testing.T) {
 	}
 	if rawQuery != "z=hello%20world&id=new&a=%2F" {
 		t.Fatalf("raw query = %q, want original order and unrelated encodings", rawQuery)
+	}
+	if got := result.Steps[1].Request.Query.Get("id"); got != "new" {
+		t.Fatalf("trace id = %q, want new", got)
 	}
 }
 

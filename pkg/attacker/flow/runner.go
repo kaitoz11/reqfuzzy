@@ -237,9 +237,12 @@ func replaceQueryValue(rawURL, key, value string) (string, error) {
 }
 
 func snapshot(request attacker.Request) RequestSnapshot {
-	query := make(url.Values, len(request.QueryParams))
+	query := make(url.Values)
+	if parsed, err := url.Parse(request.RawURL); err == nil {
+		query = parsed.Query()
+	}
 	for key, values := range request.QueryParams {
-		query[key] = append([]string(nil), values...)
+		query[key] = append(query[key], values...)
 	}
 	return RequestSnapshot{
 		Method:  request.Method,

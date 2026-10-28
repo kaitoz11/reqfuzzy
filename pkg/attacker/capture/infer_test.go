@@ -39,6 +39,9 @@ func TestSuggestFlowLinksBearerTokenAndNumericTransactionID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if strings.Contains(string(yamlData), `before_send: ""`) || strings.Contains(string(yamlData), "bind: []") || strings.Contains(string(yamlData), `actor: ""`) {
+		t.Fatalf("suggested YAML includes empty editing noise:\n%s", yamlData)
+	}
 	loaded, err := flow.LoadYAML(yamlData)
 	if err != nil {
 		t.Fatalf("suggested flow YAML cannot be loaded: %v\n%s", err, yamlData)

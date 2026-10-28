@@ -8,12 +8,12 @@ import (
 )
 
 func materializeRequest(index int, request harRequest) (string, []byte, error) {
-	if request.Method == "" || strings.ContainsAny(request.Method, " \t\r\n") {
+	if !validHTTPToken(request.Method) {
 		return "", nil, fmt.Errorf("invalid request method %q", request.Method)
 	}
 	parsed, err := url.Parse(request.URL)
-	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" || parsed.Fragment != "" {
-		return "", nil, fmt.Errorf("invalid absolute HTTP URL %q", request.URL)
+	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" || parsed.Fragment != "" || parsed.User != nil {
+		return "", nil, fmt.Errorf("invalid absolute HTTP URL")
 	}
 	path := parsed.EscapedPath()
 	if path == "" {
@@ -69,10 +69,30 @@ func materializeRequest(index int, request harRequest) (string, []byte, error) {
 }
 
 func validHeader(header harNameValue) bool {
-	if header.Name == "" || strings.ContainsAny(header.Name, ": \t\r\n") || strings.HasPrefix(header.Name, ":") {
+	if !validHTTPToken(header.Name) {
 		return false
 	}
-	return !strings.ContainsAny(header.Value, "\r\n")
+	for index := 0; index < len(header.Value); index++ {
+		character := header.Value[index]
+		if character != '\t' && (character < 0x20 || character == 0x7f) {
+			return false
+		}
+	}
+	return true
+}
+
+func validHTTPToken(token string) bool {
+	if token == "" {
+		return false
+	}
+	for index := 0; index < len(token); index++ {
+		character := token[index]
+		if character >= 'a' && character <= 'z' || character >= 'A' && character <= 'Z' || character >= '0' && character <= '9' || strings.ContainsRune("!#$%&'*+-.^_`|~", rune(character)) {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 func pathSlug(path string) string {

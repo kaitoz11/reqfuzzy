@@ -34,7 +34,7 @@ type ParsedHeader struct {
 func parseRequestLine(requestLine string) (string, string, string, error) {
 	parts := strings.Split(requestLine, " ")
 	if len(parts) != 3 {
-		return "", "", "", fmt.Errorf("invalid request line format [%s]", requestLine)
+		return "", "", "", fmt.Errorf("invalid request line format")
 	}
 
 	method := parts[0]
@@ -47,7 +47,7 @@ func parseRequestLine(requestLine string) (string, string, string, error) {
 func parseHeaderLine(headerLine string) (key, value string, err error) {
 	parts := strings.SplitN(headerLine, ": ", 2)
 	if len(parts) != 2 {
-		return "", "", fmt.Errorf("invalid header format [%s]", headerLine)
+		return "", "", fmt.Errorf("invalid header format (expected name followed by colon and space)")
 	}
 	return parts[0], parts[1], nil
 }

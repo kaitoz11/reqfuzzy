@@ -250,3 +250,121 @@ func TestCommandDeadlineCoversScriptPreflight(t *testing.T) {
 		t.Fatalf("code=%d out=%s err=%s hits=%d elapsed=%s", code, out, stderr, hits.Load(), time.Since(started))
 	}
 }
+
+func TestCapturedTargetCannotEscapeSelectedOrigin(t *testing.T) {
+	var hits atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { hits.Add(1); w.WriteHeader(200) }))
+	defer server.Close()
+	root := t.TempDir()
+	input := filepath.Join(root, "capture.har")
+	project := filepath.Join(root, "project")
+	write(t, input, har(t, "http://capture.test"))
+	if code, _, err := call("import", "--out", project, input); code != 0 {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(project, "flow.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	definition, err := flow.LoadYAML(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	definition.Steps = []flow.Step{{ID: "malformed", Request: definition.Steps[0].Request}}
+	data, _ = yaml.Marshal(definition)
+	write(t, filepath.Join(project, "flow.yaml"), data)
+	name := definition.Steps[0].Request
+	write(t, filepath.Join(project, "requests", name+".txt"), []byte("GET @"+strings.TrimPrefix(server.URL, "http://")+"/ HTTP/1.1\r\nHost: capture.test\r\n\r\n"))
+	code, out, stderr := call("flow", "run", "--project", project, "--base-url", "http://allowed.test", "--json")
+	if code != 1 || hits.Load() != 0 {
+		t.Fatalf("origin escape code=%d hits=%d out=%s err=%s", code, hits.Load(), out, stderr)
+	}
+}
+
+func TestDefaultHookDirectoryCannotEscapeProject(t *testing.T) {
+	var hits atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { hits.Add(1); fmt.Fprint(w, `{"token":"runtime-12345"}`) }))
+	defer server.Close()
+	root := t.TempDir()
+	input := filepath.Join(root, "capture.har")
+	project := filepath.Join(root, "project")
+	write(t, input, har(t, "http://capture.test"))
+	if code, _, err := call("import", "--out", project, input); code != 0 {
+		t.Fatal(err)
+	}
+	data, _ := os.ReadFile(filepath.Join(project, "flow.yaml"))
+	definition, err := flow.LoadYAML(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	definition.Steps = []flow.Step{{ID: "one", Request: definition.Steps[0].Request, BeforeSend: "external"}}
+	data, _ = yaml.Marshal(definition)
+	write(t, filepath.Join(project, "flow.yaml"), data)
+	external := filepath.Join(root, "outside")
+	write(t, filepath.Join(external, "external.js"), []byte(`function beforeSend(ctx){}`))
+	if err := os.Remove(filepath.Join(project, "hooks")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(external, filepath.Join(project, "hooks")); err != nil {
+		t.Fatal(err)
+	}
+	code, out, stderr := call("flow", "run", "--project", project, "--base-url", server.URL, "--json")
+	if code != 1 || hits.Load() != 0 {
+		t.Fatalf("escaped hook code=%d hits=%d out=%s err=%s", code, hits.Load(), out, stderr)
+	}
+}
+
+func TestMalformedHeaderDoesNotLeakCapturedValue(t *testing.T) {
+	root := t.TempDir()
+	input := filepath.Join(root, "capture.har")
+	project := filepath.Join(root, "project")
+	write(t, input, har(t, "http://capture.test"))
+	if code, _, err := call("import", "--out", project, input); code != 0 {
+		t.Fatal(err)
+	}
+	data, _ := os.ReadFile(filepath.Join(project, "flow.yaml"))
+	definition, err := flow.LoadYAML(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	name := definition.Steps[0].Request
+	definition.Steps = []flow.Step{{ID: "one", Request: name}}
+	data, _ = yaml.Marshal(definition)
+	write(t, filepath.Join(project, "flow.yaml"), data)
+	write(t, filepath.Join(project, "requests", name+".txt"), []byte("GET / HTTP/1.1\r\nAuthorization:SECRET_REVIEW_TOKEN\r\n\r\n"))
+	code, out, stderr := call("flow", "run", "--project", project, "--base-url", "http://127.0.0.1:1", "--json")
+	if code == 0 || strings.Contains(out+stderr, "SECRET_REVIEW_TOKEN") {
+		t.Fatalf("captured secret leaked: code=%d out=%s err=%s", code, out, stderr)
+	}
+}
+
+func TestTransportErrorDoesNotEchoRequestQuery(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		connection, _, err := w.(http.Hijacker).Hijack()
+		if err == nil {
+			connection.Close()
+		}
+	}))
+	defer server.Close()
+	root := t.TempDir()
+	input := filepath.Join(root, "capture.har")
+	project := filepath.Join(root, "project")
+	write(t, input, har(t, "http://capture.test"))
+	if code, _, err := call("import", "--out", project, input); code != 0 {
+		t.Fatal(err)
+	}
+	data, _ := os.ReadFile(filepath.Join(project, "flow.yaml"))
+	definition, err := flow.LoadYAML(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	name := definition.Steps[0].Request
+	definition.Steps = []flow.Step{{ID: "one", Request: name}}
+	data, _ = yaml.Marshal(definition)
+	write(t, filepath.Join(project, "flow.yaml"), data)
+	write(t, filepath.Join(project, "requests", name+".txt"), []byte("GET /drop?token=SECRET_REVIEW_TOKEN HTTP/1.1\r\nHost: capture.test\r\n\r\n"))
+	code, out, stderr := call("flow", "run", "--project", project, "--base-url", server.URL, "--json")
+	if code != 2 || strings.Contains(out+stderr, "SECRET_REVIEW_TOKEN") {
+		t.Fatalf("transport diagnostic leaked query: code=%d out=%s err=%s", code, out, stderr)
+	}
+}

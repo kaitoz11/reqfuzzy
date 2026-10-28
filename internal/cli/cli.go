@@ -92,6 +92,9 @@ func RunContext(ctx context.Context, args []string, stdout, stderr io.Writer) in
 	if *timeout <= 0 || *scriptTimeout <= 0 {
 		return emit(stdout, stderr, jsonMode, command, nil, 1, fmt.Errorf("timeouts must be positive"))
 	}
+	if err := validateTargets(project); err != nil {
+		return emit(stdout, stderr, jsonMode, command, nil, 1, err)
+	}
 	execution, cancel := context.WithTimeout(ctx, *timeout)
 	defer cancel()
 	before, after, err := loadScripts(execution, project, *hooks, *scriptTimeout)
@@ -169,8 +172,10 @@ func RunContext(ctx context.Context, args []string, stdout, stderr io.Writer) in
 }
 
 func loadScripts(ctx context.Context, project project, directory string, timeout time.Duration) (map[string]flow.BeforeSend, map[string]flow.AfterResponse, error) {
+	prefix := ""
 	if directory == "" {
-		directory = filepath.Join(project.Root, "hooks")
+		directory = project.Root
+		prefix = "hooks"
 	}
 	before := map[string]flow.BeforeSend{}
 	after := map[string]flow.AfterResponse{}
@@ -188,7 +193,7 @@ func loadScripts(ctx context.Context, project project, directory string, timeout
 			}
 			program := programs[entry.name]
 			if program == nil {
-				path, err := inside(directory, entry.name+".js")
+				path, err := inside(directory, filepath.Join(prefix, entry.name+".js"))
 				if err != nil {
 					return nil, nil, fmt.Errorf("hook %q: %w", entry.name, err)
 				}

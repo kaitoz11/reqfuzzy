@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -64,6 +65,14 @@ func emit(stdout, stderr io.Writer, jsonMode bool, command string, result any, c
 		if errors.As(err, &stepErr) {
 			info.Kind = string(stepErr.Kind)
 			info.StepID = stepErr.StepID
+			if stepErr.Kind == flow.TransportError {
+				info.Message = "request transport failed"
+				if errors.Is(err, context.DeadlineExceeded) {
+					info.Message = "request deadline exceeded"
+				} else if errors.Is(err, context.Canceled) {
+					info.Message = "request canceled"
+				}
+			}
 		}
 	}
 	if jsonMode {
@@ -74,7 +83,11 @@ func emit(stdout, stderr io.Writer, jsonMode bool, command string, result any, c
 		return code
 	}
 	if err != nil {
-		fmt.Fprintln(stderr, err)
+		fmt.Fprintf(stderr, "%s", info.Message)
+		if info.StepID != "" {
+			fmt.Fprintf(stderr, " (step %s)", info.StepID)
+		}
+		fmt.Fprintln(stderr)
 	}
 	switch value := result.(type) {
 	case runSummary:

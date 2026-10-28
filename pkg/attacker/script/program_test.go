@@ -95,6 +95,7 @@ func TestRawVariablesPreserveLargeNumbers(t *testing.T) {
 
 func TestScriptRejectsInvalidEditsAndAsyncResult(t *testing.T) {
 	cases := []string{`function beforeSend(ctx){ctx.request.setHeader("X-Test","bad\nvalue");}`, `function beforeSend(ctx){ctx.request.url="https://other.test/";}`, `function beforeSend(ctx){ctx.request.body={};}`, `function beforeSend(ctx){return Promise.resolve(1);}`, `function beforeSend(ctx){ctx.vars.set("obj",{});}`}
+	cases = append(cases, `function beforeSend(ctx){delete ctx.request.method;}`, `function beforeSend(ctx){delete ctx.request.url;}`, `function beforeSend(ctx){delete ctx.request.body;}`)
 	for _, source := range cases {
 		p := compile(t, source)
 		if err := p.BeforeSend(request(t), flow.Variables{}); err == nil {

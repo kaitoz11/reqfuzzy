@@ -15,6 +15,7 @@ import (
 	"github.com/kaitoz11/reqfuzzy/pkg/attacker"
 	"github.com/kaitoz11/reqfuzzy/pkg/attacker/capture"
 	"github.com/kaitoz11/reqfuzzy/pkg/attacker/flow"
+	"golang.org/x/net/http/httpguts"
 	"gopkg.in/yaml.v3"
 )
 
@@ -28,6 +29,24 @@ type project struct {
 	Manifest manifest
 	Flow     flow.Flow
 	Store    *attacker.RequestStore
+}
+
+func validateTargets(project project) error {
+	for _, step := range project.Flow.Steps {
+		stored, err := project.Store.GetRequestContext(step.Request)
+		if err != nil {
+			return fmt.Errorf("step %q request %q: %w", step.ID, step.Request, err)
+		}
+		raw := stored.ParsedRequest.Path
+		parsed, err := url.Parse(raw)
+		if err != nil || parsed.IsAbs() || parsed.Host != "" || parsed.User != nil || parsed.Fragment != "" || !strings.HasPrefix(raw, "/") || strings.HasPrefix(raw, "//") {
+			return fmt.Errorf("step %q: captured request target must be a relative path without a fragment", step.ID)
+		}
+		if !httpguts.ValidHeaderFieldName(stored.ParsedRequest.Method) {
+			return fmt.Errorf("step %q: invalid request method", step.ID)
+		}
+	}
+	return nil
 }
 
 func inside(root, relative string) (string, error) {

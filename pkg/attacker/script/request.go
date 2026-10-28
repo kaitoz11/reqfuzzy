@@ -60,20 +60,20 @@ func requestObject(vm *goja.Runtime, request attacker.Request) (*goja.Object, ht
 }
 
 func applyRequest(object *goja.Object, headers http.Header, request attacker.Request) error {
-	method, ok := object.Get("method").Export().(string)
-	if !ok || !httpguts.ValidHeaderFieldName(method) {
+	method, err := stringProperty(object, "method")
+	if err != nil || !httpguts.ValidHeaderFieldName(method) {
 		return fmt.Errorf("request method must be an HTTP token")
 	}
-	rawURL, ok := object.Get("url").Export().(string)
-	if !ok {
+	rawURL, err := stringProperty(object, "url")
+	if err != nil {
 		return fmt.Errorf("request url must be a relative path")
 	}
 	parsed, err := url.Parse(rawURL)
 	if err != nil || parsed.IsAbs() || parsed.Host != "" || parsed.Fragment != "" || !strings.HasPrefix(rawURL, "/") || strings.HasPrefix(rawURL, "//") {
 		return fmt.Errorf("request url must be a relative path without fragment")
 	}
-	body, ok := object.Get("body").Export().(string)
-	if !ok {
+	body, err := stringProperty(object, "body")
+	if err != nil {
 		return fmt.Errorf("request body must be a string")
 	}
 	request.Method = method
@@ -87,4 +87,19 @@ func applyRequest(object *goja.Object, headers http.Header, request attacker.Req
 	}
 	request.SetContextData(rawreq.RequestBodyType, bodyType)
 	return nil
+}
+
+func stringProperty(object *goja.Object, name string) (string, error) {
+	value := object.Get(name)
+	if value == nil || goja.IsUndefined(value) || goja.IsNull(value) {
+		return "", fmt.Errorf("request %s must be a string", name)
+	}
+	if _, isObject := value.(*goja.Object); isObject {
+		return "", fmt.Errorf("request %s must be a string", name)
+	}
+	text, ok := value.Export().(string)
+	if !ok {
+		return "", fmt.Errorf("request %s must be a string", name)
+	}
+	return text, nil
 }

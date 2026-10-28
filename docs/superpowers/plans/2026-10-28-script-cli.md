@@ -8,11 +8,11 @@ Spec: `docs/superpowers/specs/2026-10-28-script-cli-design.md`.
 
 ## Tasks
 
-- [ ] Extend flow steps with `after_response`/`provides`, validate references, preflight hooks, record provided values, and preserve existing execution behavior. Add a global preparation callback and shared set-mutation constructor. Test response-script handoff and failures against a local server.
-- [ ] Add `pkg/attacker/script` using pinned Goja: compile/check exports, isolated VM per call, deadlines/cancellation, staged request and variable edits, explicit scalar/raw APIs, crypto/encoding helpers. Test final-body signing, raw large numbers, malformed edits, exceptions, Promise returns, and infinite loops.
-- [ ] Add strict project manifests and atomic offline import under `internal/cli`. Select one origin, reject output conflicts, keep generated request paths within the project, and serialize the editable flow.
-- [ ] Add `cmd/reqfuzzy` and `internal/cli.Run` for import/show/run/compare, explicit target, hook loading, deadlines, safe summaries, JSON envelope, and documented exit codes. Test the real handler through the complete local journey, including a post-response script and signing after mutation.
-- [ ] Align README and the historical kvar notes with reqfuzzy as canonical; document scripts and commands with a runnable local example. Add CI for race tests, vet, and build.
+- [x] Extend flow steps with `after_response`/`provides`, validate references, preflight hooks, record provided values, and preserve existing execution behavior. Add a global preparation callback and shared set-mutation constructor. Test response-script handoff and failures against a local server.
+- [x] Add `pkg/attacker/script` using pinned Goja: compile/check exports, isolated VM per call, deadlines/cancellation, staged request and variable edits, explicit scalar/raw APIs, crypto/encoding helpers. Test final-body signing, raw large numbers, malformed edits, exceptions, Promise returns, and infinite loops.
+- [x] Add strict project manifests and atomic offline import under `internal/cli`. Select one origin, reject output conflicts, keep generated request paths within the project, and serialize the editable flow.
+- [x] Add `cmd/reqfuzzy` and `internal/cli.Run` for import/show/run/compare, explicit target, hook loading, deadlines, safe summaries, JSON envelope, and documented exit codes. Test the real handler through the complete local journey, including a post-response script and signing after mutation.
+- [x] Align README and the historical kvar notes with reqfuzzy as canonical; document scripts and commands with a runnable local example. Add CI for race tests, vet, and build.
 - [ ] Review the completed diff, address substantive findings, verify the final commit, and publish a draft PR against `feat/req-fuzzer`.
 
 ## File boundaries

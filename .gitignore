@@ -1,4 +1,5 @@
 .reqfuzzy/
+/bin/
 vikki/
 Taskfile.yaml
 frida-scripts/

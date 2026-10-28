@@ -9,19 +9,22 @@ import (
 type RequestSnapshot struct {
 	Method  string
 	RawURL  string
+	Host    string
 	Query   url.Values
 	Headers http.Header
 	Body    []byte
 }
 
 type StepResult struct {
-	StepID       string
-	Actor        string
-	RequestName  string
-	Request      RequestSnapshot
-	StatusCode   int
-	ResponseBody []byte
-	Extracted    Variables
+	StepID          string
+	Actor           string
+	RequestName     string
+	Request         RequestSnapshot
+	SentRequest     *RequestSnapshot
+	StatusCode      int
+	ResponseHeaders http.Header
+	ResponseBody    []byte
+	Extracted       Variables
 }
 
 type RunResult struct {

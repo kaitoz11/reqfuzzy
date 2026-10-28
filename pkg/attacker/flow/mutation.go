@@ -3,9 +3,8 @@ package flow
 import (
 	"bytes"
 	"fmt"
-	"github.com/kaitoz11/reqfuzzy/pkg/attacker"
+
 	"github.com/tidwall/gjson"
-	"golang.org/x/net/http/httpguts"
 )
 
 // ParseValue accepts a JSON string, number, or boolean without converting numbers to float64.
@@ -26,23 +25,14 @@ func ParseValue(raw []byte) (Value, error) {
 }
 
 func SetMutation(location, path string, value Value) (Mutation, error) {
-	parsed, err := ParseValue(value.RawJSON)
-	if err != nil {
-		return nil, err
+	return BuildMutation(MutationSpec{Action: "set", Location: location, Path: path, Value: value.RawJSON})
+}
+
+// ParseMutationValue additionally permits JSON null, which is useful for request tests.
+func ParseMutationValue(raw []byte) (Value, error) {
+	raw = bytes.TrimSpace(raw)
+	if bytes.Equal(raw, []byte("null")) {
+		return Value{RawJSON: []byte("null"), Text: "null"}, nil
 	}
-	if path == "" {
-		return nil, fmt.Errorf("mutation path is required")
-	}
-	switch location {
-	case "header":
-		if !httpguts.ValidHeaderFieldName(path) || !httpguts.ValidHeaderFieldValue(parsed.Text) {
-			return nil, fmt.Errorf("invalid mutation header")
-		}
-	case "query", "json":
-	default:
-		return nil, fmt.Errorf("unsupported mutation location %q", location)
-	}
-	return func(request attacker.Request, _ Variables) error {
-		return bindValue(request, Binding{Location: location, Path: path}, parsed)
-	}, nil
+	return ParseValue(raw)
 }

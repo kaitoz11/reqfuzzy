@@ -1,1 +1,6 @@
 .reqfuzzy/
+vikki/
+Taskfile.yaml
+frida-scripts/
+local/
+__handlers__/

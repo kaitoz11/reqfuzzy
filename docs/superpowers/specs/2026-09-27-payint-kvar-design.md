@@ -1,6 +1,6 @@
 # payint-kvar — Design Spec
 
-**Status:** approved design, pre-implementation
+**Status:** historical; superseded by implementation in [reqfuzzy](https://github.com/kaitoz11/reqfuzzy) on 2026-10-28. The separate Python engine proposed below is no longer the implementation plan. Current contracts live in reqfuzzy's `docs/superpowers/` directory.
 **Date:** 2026-09-27
 **Origin:** clean rewrite of payintv3 ideas; corpus ported from payintv3
 

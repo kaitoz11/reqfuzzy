@@ -67,6 +67,7 @@ func TestLoadYAMLRejectsInvalidFlows(t *testing.T) {
 		{"missing request", "name: x\nsteps:\n  - {id: login}\n", "request is required"},
 		{"forward variable", "name: x\nsteps:\n  - id: use\n    request: use\n    bind: [{location: header, path: X-Token, variable: token}]\n  - id: login\n    request: login\n    extract: [{name: token, json: token}]\n", "earlier step"},
 		{"invalid location", "name: x\nsteps:\n  - id: login\n    request: login\n    extract: [{name: token, json: token}]\n  - id: use\n    request: use\n    bind: [{location: cookie, path: sid, variable: token}]\n", "unsupported binding location"},
+		{"prefix on JSON", "name: x\nsteps:\n  - id: source\n    request: source\n    extract: [{name: id, json: id}]\n  - id: target\n    request: target\n    bind: [{location: json, path: id, variable: id, prefix: x}]\n", "prefix"},
 		{"duplicate variable", "name: x\nsteps:\n  - id: one\n    request: one\n    extract: [{name: token, json: token}]\n  - id: two\n    request: two\n    extract: [{name: token, json: token}]\n", "duplicate variable"},
 		{"invalid status", "name: x\nsteps:\n  - {id: login, request: login, expect_status: 700}\n", "expect_status"},
 		{"unknown field", "name: x\nsteps:\n  - {id: login, request: login, typo: true}\n", "field typo not found"},

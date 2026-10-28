@@ -19,6 +19,7 @@ type Binding struct {
 	Location string `yaml:"location"`
 	Path     string `yaml:"path"`
 	Variable string `yaml:"variable"`
+	Prefix   string `yaml:"prefix,omitempty"`
 }
 
 type Extraction struct {

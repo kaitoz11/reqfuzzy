@@ -180,9 +180,9 @@ func bindValue(request attacker.Request, binding Binding, value Value) error {
 				delete(request.Headers, key)
 			}
 		}
-		request.SetHeaderNonCanonical(binding.Path, value.Text)
+		request.SetHeaderNonCanonical(binding.Path, binding.Prefix+value.Text)
 	case "query":
-		updated, err := replaceQueryValue(request.RawURL, binding.Path, value.Text)
+		updated, err := replaceQueryValue(request.RawURL, binding.Path, binding.Prefix+value.Text)
 		if err != nil {
 			return err
 		}

@@ -52,8 +52,8 @@ Read and edit the YAML before replay. A suggested link is only a matching value 
 
 ## Current inference boundaries
 
-- Sources are scalar JSON response values. Strings need at least six characters; numbers need at least four digits. Repeated or ambiguous prior values are left unresolved.
-- Destinations are exact query values, exact headers, `Authorization: Bearer <token>`, and scalar JSON body values. The runner supports the generated bindings. Path segments, cookies, form fields, and multipart bodies are outside this inference slice.
+- Sources are scalar JSON response values. Strings need at least six characters; numbers need at least four digits. Repeated or ambiguous prior values and responses with duplicate JSON object keys are left unresolved.
+- Destinations are exact query values, exact headers, `Authorization: Bearer <token>` (case insensitive scheme), and scalar JSON body values. Repeated query keys and repeated header names are left unresolved because a current flow binding replaces the whole key. The runner supports the generated bindings. Path segments, cookies, form fields, and multipart bodies are outside this inference slice.
 - A response with no captured body or invalid JSON contributes no source values. Base64 encoded response content is decoded. Params-only URL-encoded request bodies are reconstructed; params-only multipart requests are rejected because their bytes are unavailable.
 - The YAML contains executable steps and bindings. Confidence and source/destination provenance remain in `Suggestion.Links` so the strict flow loader accepts the file.
 

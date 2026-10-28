@@ -55,12 +55,12 @@ func (s Suggestion) YAML() ([]byte, error)
 
 `SuggestFlow` creates one step for each exchange in capture order. Its `request` is the exchange name; its `id` is the same name. If a response is present with an HTTP status from 100 to 599, set `expect_status` to that observed status. The flow name is `har-suggestion`.
 
-Only JSON scalar values from response bodies are candidate sources. Traverse nested objects and arrays deterministically, producing `gjson` paths such as `data.transactionId` and `items.0.id`. Strings shorter than six characters, numbers with fewer than four digits, booleans, nulls, objects, and arrays are excluded. This suppresses common accidental matches. A response with absent, invalid, or non-JSON content contributes no candidates.
+Only JSON scalar values from response bodies are candidate sources. Traverse nested objects and arrays deterministically, producing `gjson` paths such as `data.transactionId` and `items.0.id`. Escape special key characters with `gjson.Escape`, which also produces paths accepted by `sjson`. Strings shorter than six characters, numbers with fewer than four digits, booleans, nulls, objects, and arrays are excluded. This suppresses common accidental matches. A response with absent, invalid, non-JSON, or duplicate-key JSON content contributes no candidates.
 
 Search later requests for an exact scalar value in these runnable destinations:
 
-- URL query values: `location: query`, with the query key as `path`.
-- Header values: `location: header`, excluding `Host`, `Cookie`, `Content-Length`, `Transfer-Encoding`, and other framing headers. Recognize `Authorization: Bearer <token>` as a token match with `prefix: "Bearer "`.
+- URL query values: `location: query`, with the query key as `path`. Skip keys with more than one value because the runner replaces the entire key.
+- Header values: `location: header`, excluding `Host`, `Cookie`, `Content-Length`, `Transfer-Encoding`, and other framing headers. Skip repeated header names for the same reason. Recognize `Authorization: Bearer <token>` case insensitively and preserve its original scheme prefix.
 - JSON body scalar leaves: `location: json`, with an `sjson` path as `path`; match both value and JSON type.
 
 Only emit a binding when the matching value has exactly one eligible source path in all earlier responses. Ambiguous values produce no automatic binding. One source extraction can feed multiple later bindings. Each emitted link adds an extraction to the source step and a binding to the destination step. Generated variable names are deterministic and unique. `Link` records source/destination step and paths, the optional prefix, and a confidence value (`high` for exact strings of at least eight characters and Bearer tokens; `medium` for shorter eligible strings and numbers). It never stores the secret value itself.

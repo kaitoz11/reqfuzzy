@@ -72,6 +72,7 @@ func TestParseHARRejectsUnreplayableEntries(t *testing.T) {
 		{"control byte in header value", []byte(strings.Replace(string(sampleHAR()), `"value":"one"`, `"value":"one\u0000two"`, 1)), "invalid header"},
 		{"invalid method token", []byte(strings.Replace(string(sampleHAR()), `"method":"GET"`, `"method":"GE/T"`, 1)), "invalid request method"},
 		{"URL userinfo", []byte(strings.Replace(string(sampleHAR()), `http://example.test/api/login`, `http://user:pass@example.test/api/login`, 1)), "invalid absolute HTTP URL"},
+		{"postData MIME header injection", []byte(`{"log":{"version":"1.2","entries":[{"request":{"method":"POST","url":"http://example.test/upload","postData":{"mimeType":"application/json\r\nX-Evil: yes","text":"{}"}},"response":{"status":200}}]}}`), "invalid postData MIME type"},
 		{"multipart params without text", []byte(`{"log":{"version":"1.2","entries":[{"request":{"method":"POST","url":"http://example.test/upload","postData":{"mimeType":"multipart/form-data","params":[{"name":"file","value":"x"}]}},"response":{"status":200}}]}}`), "cannot be replayed"},
 		{"bad base64", []byte(strings.Replace(string(sampleHAR()), encodedLogin, "not-base64!", 1)), "decode base64 response"},
 		{"unknown encoding", []byte(strings.Replace(string(sampleHAR()), `"encoding":"base64"`, `"encoding":"rot13"`, 1)), "unsupported response encoding"},
@@ -83,6 +84,20 @@ func TestParseHARRejectsUnreplayableEntries(t *testing.T) {
 				t.Fatalf("error = %v, want %q", err, tc.want)
 			}
 		})
+	}
+}
+
+func TestParseHARGeneratedNameIsSafeForValidMethodToken(t *testing.T) {
+	archive := []byte(strings.Replace(string(sampleHAR()), `"method":"GET"`, `"method":"M!X"`, 1))
+	parsed, err := capture.ParseHAR(archive)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.ContainsAny(parsed.Exchanges[0].Name, `!/\`) {
+		t.Fatalf("generated name %q is not file-safe", parsed.Exchanges[0].Name)
+	}
+	if _, err := parsed.WriteRequests(t.TempDir()); err != nil {
+		t.Fatalf("generated name cannot be written: %v", err)
 	}
 }
 

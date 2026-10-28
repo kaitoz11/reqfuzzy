@@ -6,6 +6,8 @@ import (
 
 	"github.com/kaitoz11/reqfuzzy/pkg/attacker/capture"
 	"github.com/kaitoz11/reqfuzzy/pkg/attacker/flow"
+	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 )
 
 func TestSuggestFlowLinksBearerTokenAndNumericTransactionID(t *testing.T) {
@@ -97,6 +99,9 @@ func TestSuggestFlowEscapesNestedJSONPaths(t *testing.T) {
 	if len(suggestion.Links) != 1 || suggestion.Links[0].FromJSONPath != `data.items.0.txn\.id` || suggestion.Links[0].ToPath != "id" {
 		t.Fatalf("nested link = %#v", suggestion.Links)
 	}
+	if got := gjson.GetBytes(archive.Exchanges[0].ResponseBody, suggestion.Links[0].FromJSONPath).String(); got != "ABCDEF123" {
+		t.Fatalf("generated JSON path extracted %q", got)
+	}
 	data, err := suggestion.YAML()
 	if err != nil {
 		t.Fatal(err)
@@ -106,5 +111,84 @@ func TestSuggestFlowEscapesNestedJSONPaths(t *testing.T) {
 	}
 	if strings.Contains(string(data), "ABCDEF123") {
 		t.Fatal("suggested YAML copied a captured value")
+	}
+}
+
+func TestSuggestFlowPreservesBearerSchemeCase(t *testing.T) {
+	archive := []byte(strings.Replace(string(sampleHAR()), "Bearer token-12345", "bearer token-12345", 1))
+	parsed, err := capture.ParseHAR(archive)
+	if err != nil {
+		t.Fatal(err)
+	}
+	suggestion, err := capture.SuggestFlow(parsed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(suggestion.Flow.Steps[1].Bind) != 1 || suggestion.Flow.Steps[1].Bind[0].Prefix != "bearer " {
+		t.Fatalf("lowercase Bearer binding missing: %#v", suggestion.Flow.Steps[1].Bind)
+	}
+}
+
+func TestSuggestFlowEscapesGJSONAndSJSONOperatorsInKeys(t *testing.T) {
+	archive := capture.Capture{Exchanges: []capture.Exchange{
+		{Name: "source", URL: "http://example.test/source", RequestRaw: []byte("GET /source HTTP/1.1\r\nHost: example.test\r\n\r\n"), ResponseBody: []byte(`{"secret|token":"ABCDEF123"}`), ResponseBodyPresent: true},
+		{Name: "target", URL: "http://example.test/target", RequestRaw: []byte("POST /target HTTP/1.1\r\nHost: example.test\r\nContent-Type: application/json\r\n\r\n{\"txn#id\":\"ABCDEF123\"}")},
+	}}
+	suggestion, err := capture.SuggestFlow(archive)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(suggestion.Links) != 1 {
+		t.Fatalf("links = %#v, want one", suggestion.Links)
+	}
+	link := suggestion.Links[0]
+	if got := gjson.GetBytes(archive.Exchanges[0].ResponseBody, link.FromJSONPath).String(); got != "ABCDEF123" {
+		t.Fatalf("source path %q extracted %q", link.FromJSONPath, got)
+	}
+	updated, err := sjson.SetRawBytes([]byte(`{"txn#id":"ABCDEF123"}`), link.ToPath, []byte(`"ZZZZ"`))
+	if err != nil || string(updated) != `{"txn#id":"ZZZZ"}` {
+		t.Fatalf("destination path %q updated %q: %v", link.ToPath, updated, err)
+	}
+}
+
+func TestSuggestFlowSkipsRepeatedQueryKey(t *testing.T) {
+	archive := capture.Capture{Exchanges: []capture.Exchange{
+		{Name: "source", URL: "http://example.test/source", RequestRaw: []byte("GET /source HTTP/1.1\r\nHost: example.test\r\n\r\n"), ResponseBody: []byte(`{"token":"secret123"}`), ResponseBodyPresent: true},
+		{Name: "target", URL: "http://example.test/target?id=secret123&id=static", RequestRaw: []byte("GET /target?id=secret123&id=static HTTP/1.1\r\nHost: example.test\r\n\r\n")},
+	}}
+	suggestion, err := capture.SuggestFlow(archive)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(suggestion.Links) != 0 {
+		t.Fatalf("repeated-key link would remove a value: %#v", suggestion.Links)
+	}
+}
+
+func TestSuggestFlowSkipsRepeatedHeaderName(t *testing.T) {
+	archive := capture.Capture{Exchanges: []capture.Exchange{
+		{Name: "source", URL: "http://example.test/source", RequestRaw: []byte("GET /source HTTP/1.1\r\nHost: example.test\r\n\r\n"), ResponseBody: []byte(`{"token":"secret123"}`), ResponseBodyPresent: true},
+		{Name: "target", URL: "http://example.test/target", RequestRaw: []byte("GET /target HTTP/1.1\r\nHost: example.test\r\nX-Token: secret123\r\nx-token: static\r\n\r\n")},
+	}}
+	suggestion, err := capture.SuggestFlow(archive)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(suggestion.Links) != 0 {
+		t.Fatalf("repeated-header link would remove a value: %#v", suggestion.Links)
+	}
+}
+
+func TestSuggestFlowSkipsDuplicateResponseJSONKeys(t *testing.T) {
+	archive := capture.Capture{Exchanges: []capture.Exchange{
+		{Name: "source", URL: "http://example.test/source", RequestRaw: []byte("GET /source HTTP/1.1\r\nHost: example.test\r\n\r\n"), ResponseBody: []byte(`{"token":"secret111","token":"secret222"}`), ResponseBodyPresent: true},
+		{Name: "target", URL: "http://example.test/target", RequestRaw: []byte("GET /target HTTP/1.1\r\nHost: example.test\r\nX-Token: secret222\r\n\r\n")},
+	}}
+	suggestion, err := capture.SuggestFlow(archive)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(suggestion.Links) != 0 {
+		t.Fatalf("duplicate-key response link uses ambiguous value: %#v", suggestion.Links)
 	}
 }

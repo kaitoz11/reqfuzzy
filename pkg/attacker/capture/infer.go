@@ -141,16 +141,23 @@ func requestValues(exchange Exchange) ([]requestValue, error) {
 	}
 	sort.Strings(keys)
 	for _, key := range keys {
+		if len(query[key]) != 1 {
+			continue
+		}
 		for _, value := range query[key] {
 			values = append(values, requestValue{Location: "query", Path: key, Text: value})
 		}
 	}
+	headerCounts := make(map[string]int, len(parsed.Headers))
 	for _, header := range parsed.Headers {
-		if ignoredHeader(header.Key) {
+		headerCounts[strings.ToLower(header.Key)]++
+	}
+	for _, header := range parsed.Headers {
+		if ignoredHeader(header.Key) || headerCounts[strings.ToLower(header.Key)] != 1 {
 			continue
 		}
-		if strings.EqualFold(header.Key, "Authorization") && strings.HasPrefix(header.Value, "Bearer ") {
-			values = append(values, requestValue{Location: "header", Path: header.Key, Prefix: "Bearer ", Text: strings.TrimPrefix(header.Value, "Bearer ")})
+		if strings.EqualFold(header.Key, "Authorization") && len(header.Value) >= len("Bearer ") && strings.EqualFold(header.Value[:len("Bearer ")], "Bearer ") {
+			values = append(values, requestValue{Location: "header", Path: header.Key, Prefix: header.Value[:len("Bearer ")], Text: header.Value[len("Bearer "):]})
 			continue
 		}
 		values = append(values, requestValue{Location: "header", Path: header.Key, Text: header.Value})

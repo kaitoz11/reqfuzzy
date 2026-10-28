@@ -5,7 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
-	"strings"
+
+	"github.com/tidwall/gjson"
 )
 
 type jsonLeaf struct {
@@ -18,6 +19,9 @@ func jsonLeaves(data []byte) []jsonLeaf {
 	if !json.Valid(data) {
 		return nil
 	}
+	if hasDuplicateObjectKey(json.NewDecoder(bytes.NewReader(data))) {
+		return nil
+	}
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.UseNumber()
 	var value any
@@ -27,6 +31,50 @@ func jsonLeaves(data []byte) []jsonLeaf {
 	var leaves []jsonLeaf
 	walkJSON(value, "", &leaves)
 	return leaves
+}
+
+func hasDuplicateObjectKey(decoder *json.Decoder) bool {
+	token, err := decoder.Token()
+	if err != nil {
+		return true
+	}
+	delimiter, ok := token.(json.Delim)
+	if !ok {
+		return false
+	}
+	switch delimiter {
+	case '{':
+		seen := make(map[string]struct{})
+		for decoder.More() {
+			keyToken, err := decoder.Token()
+			if err != nil {
+				return true
+			}
+			key, ok := keyToken.(string)
+			if !ok {
+				return true
+			}
+			if _, duplicate := seen[key]; duplicate {
+				return true
+			}
+			seen[key] = struct{}{}
+			if hasDuplicateObjectKey(decoder) {
+				return true
+			}
+		}
+		_, err := decoder.Token()
+		return err != nil
+	case '[':
+		for decoder.More() {
+			if hasDuplicateObjectKey(decoder) {
+				return true
+			}
+		}
+		_, err := decoder.Token()
+		return err != nil
+	default:
+		return true
+	}
 }
 
 func walkJSON(value any, path string, leaves *[]jsonLeaf) {
@@ -63,8 +111,7 @@ func joinJSONPath(parent, child string) string {
 }
 
 func escapeJSONPathKey(key string) string {
-	replacer := strings.NewReplacer(`\`, `\\`, `.`, `\.`, `*`, `\*`, `?`, `\?`)
-	return replacer.Replace(key)
+	return gjson.Escape(key)
 }
 
 func eligibleCandidate(leaf jsonLeaf) bool {

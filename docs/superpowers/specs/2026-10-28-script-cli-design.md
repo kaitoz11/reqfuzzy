@@ -15,7 +15,7 @@ Build with `go build -o bin/reqfuzzy ./cmd/reqfuzzy`.
 3. `reqfuzzy flow run --project .reqfuzzy/demo --base-url http://localhost:8080` replays the flow.
 4. `reqfuzzy flow compare --project .reqfuzzy/demo --base-url http://localhost:8080 --step create --location json --path amount --value 99` replays baseline and one mutation, including final signing hooks.
 
-Import is offline. A multi-origin HAR requires `--origin` to select one HTTP origin. Import requires a new output directory and stages the complete project before renaming it into place, preserving existing operator edits. Project request paths are relative and must remain inside the project. Replay requires an explicit HTTP(S) base URL and uses it for the Host header too. CLI output summarizes statuses and response hashes; it omits bodies, headers, and variable values.
+Import is offline. A multi-origin HAR requires `--origin` to select one HTTP origin. Import parses and infers first, atomically reserves a new output directory, then writes artifacts with exclusive creation and the manifest last. Existing projects are never replaced; a write failure retains partial output for inspection. Project request paths are relative and must remain inside the project. Replay requires an explicit HTTP(S) base URL and uses it for the Host header too. CLI output summarizes statuses and response hashes; it omits bodies, headers, and variable values.
 
 ## JavaScript hook contract
 

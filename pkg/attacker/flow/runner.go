@@ -14,6 +14,7 @@ import (
 
 type ClientFactory func(actor string) (*attacker.HClient, error)
 type BeforeSend func(request attacker.Request, variables Variables) error
+type AfterResponse func(response attacker.Response, variables Variables) error
 type Mutation func(request attacker.Request, variables Variables) error
 
 type StepMutation struct {
@@ -22,9 +23,11 @@ type StepMutation struct {
 }
 
 type Runner struct {
-	Store      *attacker.RequestStore
-	NewClient  ClientFactory
-	BeforeSend map[string]BeforeSend
+	Store         *attacker.RequestStore
+	NewClient     ClientFactory
+	BeforeSend    map[string]BeforeSend
+	AfterResponse map[string]AfterResponse
+	Prepare       BeforeSend
 }
 
 func (r Runner) Run(ctx context.Context, definition Flow, mutation *StepMutation) (RunResult, error) {
@@ -49,6 +52,9 @@ func (r Runner) Run(ctx context.Context, definition Flow, mutation *StepMutation
 		contexts[step.Request] = requestContext
 		if step.BeforeSend != "" && r.BeforeSend[step.BeforeSend] == nil {
 			return failRun(result, step.ID, HookError, fmt.Errorf("hook %q not registered", step.BeforeSend))
+		}
+		if step.AfterResponse != "" && r.AfterResponse[step.AfterResponse] == nil {
+			return failRun(result, step.ID, HookError, fmt.Errorf("response hook %q not registered", step.AfterResponse))
 		}
 		actor := actorName(step)
 		if clients[actor] == nil {
@@ -81,7 +87,10 @@ func (r Runner) Run(ctx context.Context, definition Flow, mutation *StepMutation
 		request.SetContext(ctx)
 		request.SetContextData(rawreq.RequestBodyType, contexts[step.Request].ParsedRequest.BodyType)
 		for _, binding := range step.Bind {
-			value := result.Variables[binding.Variable]
+			value, exists := result.Variables[binding.Variable]
+			if !exists {
+				return failRun(result, step.ID, BindingError, fmt.Errorf("variable %q is missing", binding.Variable))
+			}
 			if err := bindValue(request, binding, value); err != nil {
 				return failRun(result, step.ID, BindingError, err)
 			}
@@ -89,6 +98,11 @@ func (r Runner) Run(ctx context.Context, definition Flow, mutation *StepMutation
 		if mutation != nil && mutation.StepID == step.ID {
 			if err := mutation.Apply(request, result.Variables); err != nil {
 				return failRun(result, step.ID, MutationError, err)
+			}
+		}
+		if r.Prepare != nil {
+			if err := r.Prepare(request, result.Variables); err != nil {
+				return failRun(result, step.ID, HookError, err)
 			}
 		}
 		if step.BeforeSend != "" {
@@ -122,6 +136,23 @@ func (r Runner) Run(ctx context.Context, definition Flow, mutation *StepMutation
 			value := Value{RawJSON: []byte(found.Raw), Text: found.String()}
 			result.Variables[extraction.Name] = value
 			trace.Extracted[extraction.Name] = value
+		}
+		if step.AfterResponse != "" {
+			if err := r.AfterResponse[step.AfterResponse](response, result.Variables); err != nil {
+				return failRun(result, step.ID, HookError, err)
+			}
+		}
+		for _, name := range step.Provides {
+			provided, exists := result.Variables[name]
+			if !exists {
+				return failRun(result, step.ID, ExtractionError, fmt.Errorf("response hook did not provide %q", name))
+			}
+			value, err := ParseValue(provided.RawJSON)
+			if err != nil {
+				return failRun(result, step.ID, ExtractionError, fmt.Errorf("provided variable %q: %w", name, err))
+			}
+			result.Variables[name] = value
+			trace.Extracted[name] = value
 		}
 		result.Steps[len(result.Steps)-1] = trace
 	}

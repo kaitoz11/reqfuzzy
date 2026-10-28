@@ -69,6 +69,9 @@ func Validate(candidate Flow) error {
 			default:
 				return fmt.Errorf("flow step %q: unsupported binding location %q", step.ID, binding.Location)
 			}
+			if binding.Location == "json" && binding.Prefix != "" {
+				return fmt.Errorf("flow step %q: JSON binding cannot use prefix", step.ID)
+			}
 			if _, exists := variables[binding.Variable]; !exists {
 				return fmt.Errorf("flow step %q: variable %q must be extracted by an earlier step", step.ID, binding.Variable)
 			}

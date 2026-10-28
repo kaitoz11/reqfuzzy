@@ -91,6 +91,45 @@ func TestRunnerHeaderBindingReplacesCapturedValue(t *testing.T) {
 	}
 }
 
+func TestBearerBindingUsesExtractedToken(t *testing.T) {
+	var authorization []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/login" {
+			fmt.Fprint(w, `{"token":"token-12345"}`)
+			return
+		}
+		authorization = r.Header.Values("Authorization")
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+	store := attacker.NewRequestStore()
+	registerRawRequest(t, store, "login", "GET /login HTTP/1.1\r\nHost: example.test\r\n\r\n")
+	registerRawRequest(t, store, "target", "GET /target HTTP/1.1\r\nHost: example.test\r\nAuthorization: Bearer stale\r\n\r\n")
+	definition, err := flow.LoadYAML([]byte(`name: bearer
+steps:
+  - id: login
+    request: login
+    extract: [{name: token, json: token}]
+  - id: target
+    request: target
+    bind: [{location: header, path: Authorization, variable: token, prefix: "Bearer "}]
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	runner := flow.Runner{Store: store, NewClient: func(string) (*attacker.HClient, error) {
+		client := attacker.NewHClient()
+		client.UseBaseURL(server.URL)
+		return client, nil
+	}}
+	if _, err := runner.Run(context.Background(), definition, nil); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(authorization, []string{"Bearer token-12345"}) {
+		t.Fatalf("Authorization = %q, want one current Bearer token", authorization)
+	}
+}
+
 func TestRunnerQueryBindingReplacesCapturedValue(t *testing.T) {
 	var ids []string
 	var rawQuery string

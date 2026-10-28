@@ -8,17 +8,18 @@ type Flow struct {
 type Step struct {
 	ID           string       `yaml:"id"`
 	Request      string       `yaml:"request"`
-	Actor        string       `yaml:"actor"`
-	Bind         []Binding    `yaml:"bind"`
-	Extract      []Extraction `yaml:"extract"`
-	BeforeSend   string       `yaml:"before_send"`
-	ExpectStatus *int         `yaml:"expect_status"`
+	Actor        string       `yaml:"actor,omitempty"`
+	Bind         []Binding    `yaml:"bind,omitempty"`
+	Extract      []Extraction `yaml:"extract,omitempty"`
+	BeforeSend   string       `yaml:"before_send,omitempty"`
+	ExpectStatus *int         `yaml:"expect_status,omitempty"`
 }
 
 type Binding struct {
 	Location string `yaml:"location"`
 	Path     string `yaml:"path"`
 	Variable string `yaml:"variable"`
+	Prefix   string `yaml:"prefix,omitempty"`
 }
 
 type Extraction struct {

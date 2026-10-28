@@ -101,6 +101,15 @@ func TestParseHARGeneratedNameIsSafeForValidMethodToken(t *testing.T) {
 	}
 }
 
+func TestParseHARRejectsInvalidUTF8(t *testing.T) {
+	archive := []byte(`{"log":{"version":"1.2","entries":[{"request":{"method":"GET","url":"http://example.test/`)
+	archive = append(archive, 0xff)
+	archive = append(archive, []byte(`"},"response":{"status":200}}]}}`)...)
+	if _, err := capture.ParseHAR(archive); err == nil || !strings.Contains(err.Error(), "UTF-8") {
+		t.Fatalf("error = %v, want invalid UTF-8 rejection", err)
+	}
+}
+
 func TestParseHARHandlesMissingBodyAndFormParams(t *testing.T) {
 	archive := []byte(`{"log":{"version":"1.2","entries":[
 {"request":{"method":"POST","url":"http://example.test/form","postData":{"mimeType":"application/x-www-form-urlencoded","params":[{"name":"a","value":"1"},{"name":"b","value":"two words"}]}},"response":{"status":204,"content":{}}}

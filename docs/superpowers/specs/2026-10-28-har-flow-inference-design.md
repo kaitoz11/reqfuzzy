@@ -55,7 +55,7 @@ func (s Suggestion) YAML() ([]byte, error)
 
 `SuggestFlow` creates one step for each exchange in capture order. Its `request` is the exchange name; its `id` is the same name. If a response is present with an HTTP status from 100 to 599, set `expect_status` to that observed status. The flow name is `har-suggestion`.
 
-Only JSON scalar values from response bodies are candidate sources. Traverse nested objects and arrays deterministically, producing `gjson` paths such as `data.transactionId` and `items.0.id`. Escape special key characters with `gjson.Escape`, which also produces paths accepted by `sjson`. Strings shorter than six characters, numbers with fewer than four digits, booleans, nulls, objects, and arrays are excluded. This suppresses common accidental matches. A response with absent, invalid, non-JSON, or duplicate-key JSON content contributes no candidates.
+Only JSON scalar values from response bodies are candidate sources. Traverse nested objects and arrays deterministically, producing `gjson` paths such as `data.transactionId` and `items.0.id`. Escape special key characters with `gjson.Escape` and escape a leading colon as well, so both `gjson` extraction and `sjson` binding target the same key. Strings shorter than six characters, numbers with fewer than four digits, booleans, nulls, objects, and arrays are excluded. This suppresses common accidental matches. A response with absent, invalid, non-JSON, or duplicate-key JSON content contributes no candidates.
 
 Search later requests for an exact scalar value in these runnable destinations:
 

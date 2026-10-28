@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"unicode/utf8"
 )
 
 type Exchange struct {
@@ -63,6 +64,9 @@ type harResponse struct {
 
 func ParseHAR(data []byte) (Capture, error) {
 	data = bytes.TrimPrefix(data, []byte{0xef, 0xbb, 0xbf})
+	if !utf8.Valid(data) {
+		return Capture{}, fmt.Errorf("HAR is not valid UTF-8")
+	}
 	var archive harFile
 	if err := json.Unmarshal(data, &archive); err != nil {
 		return Capture{}, fmt.Errorf("decode HAR: %w", err)

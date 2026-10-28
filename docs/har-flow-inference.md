@@ -2,11 +2,11 @@
 
 The `capture` package turns a HAR 1.2 file into named raw requests and a draft flow. It uses the captured **responses** to suggest where a value from one step is reused by a later request. Import and inference are offline and never contact the captured host. The generated flow becomes executable only when you register its request files and call `flow.Runner` yourself.
 
-The parser follows the [HAR format specification](https://webperfwg.org/specs/HAR/Overview.html). Export a HAR with response content; captures with missing or sanitized response bodies may produce few or no links. Keep the source HAR in a private location because it can include tokens, cookies, and sensitive response data.
+The parser follows the [HAR format specification](https://webperfwg.org/specs/HAR/Overview.html), including its UTF-8 requirement. Export a HAR with response content; captures with missing or sanitized response bodies may produce few or no links. Keep the source HAR in a private location because it can include tokens, cookies, and sensitive response data.
 
 ## Generate the draft
 
-The program below reads `session.har`, writes private raw-request files under Git-ignored `.reqfuzzy/`, and saves `suggested-flow.yaml` for review. It prints link paths and confidence, never captured values.
+Place the capture at `.reqfuzzy/session.har`. The program below reads it, writes private raw-request files under the same Git-ignored directory, and saves `suggested-flow.yaml` for review. It prints link paths and confidence, never captured values.
 
 ```go
 package main
@@ -21,7 +21,7 @@ import (
 )
 
 func main() {
-    data, err := os.ReadFile("session.har")
+    data, err := os.ReadFile(filepath.Join(".reqfuzzy", "session.har"))
     if err != nil { log.Fatal(err) }
 
     imported, err := capture.ParseHAR(data)

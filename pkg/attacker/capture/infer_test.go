@@ -192,3 +192,51 @@ func TestSuggestFlowSkipsDuplicateResponseJSONKeys(t *testing.T) {
 		t.Fatalf("duplicate-key response link uses ambiguous value: %#v", suggestion.Links)
 	}
 }
+
+func TestSuggestFlowEscapesColonPrefixedDestinationKeys(t *testing.T) {
+	cases := []struct {
+		name       string
+		targetBody string
+		wantBody   string
+	}{
+		{"root", `{":id":"secret123"}`, `{":id":"changed"}`},
+		{"nested", `{"outer":{":id":"secret123"}}`, `{"outer":{":id":"changed"}}`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			archive := capture.Capture{Exchanges: []capture.Exchange{
+				{Name: "source", URL: "http://example.test/source", RequestRaw: []byte("GET /source HTTP/1.1\r\nHost: example.test\r\n\r\n"), ResponseBody: []byte(`{":token":"secret123"}`), ResponseBodyPresent: true},
+				{Name: "target", URL: "http://example.test/target", RequestRaw: []byte("POST /target HTTP/1.1\r\nHost: example.test\r\nContent-Type: application/json\r\n\r\n" + tc.targetBody)},
+			}}
+			suggestion, err := capture.SuggestFlow(archive)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(suggestion.Links) != 1 {
+				t.Fatalf("links = %#v, want one", suggestion.Links)
+			}
+			link := suggestion.Links[0]
+			if got := gjson.GetBytes(archive.Exchanges[0].ResponseBody, link.FromJSONPath).String(); got != "secret123" {
+				t.Fatalf("source path %q extracted %q", link.FromJSONPath, got)
+			}
+			updated, err := sjson.SetRawBytes([]byte(tc.targetBody), link.ToPath, []byte(`"changed"`))
+			if err != nil || string(updated) != tc.wantBody {
+				t.Fatalf("destination path %q updated %q, want %q: %v", link.ToPath, updated, tc.wantBody, err)
+			}
+		})
+	}
+}
+
+func TestSuggestFlowKeepsLargeExponentNumber(t *testing.T) {
+	archive := capture.Capture{Exchanges: []capture.Exchange{
+		{Name: "source", URL: "http://example.test/source", RequestRaw: []byte("GET /source HTTP/1.1\r\nHost: example.test\r\n\r\n"), ResponseBody: []byte(`{"number":1e400}`), ResponseBodyPresent: true},
+		{Name: "target", URL: "http://example.test/target", RequestRaw: []byte("POST /target HTTP/1.1\r\nHost: example.test\r\nContent-Type: application/json\r\n\r\n{\"number\":1e400}")},
+	}}
+	suggestion, err := capture.SuggestFlow(archive)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(suggestion.Links) != 1 || suggestion.Links[0].ToPath != "number" {
+		t.Fatalf("large numeric link missing: %#v", suggestion.Links)
+	}
+}

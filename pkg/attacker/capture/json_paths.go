@@ -19,7 +19,9 @@ func jsonLeaves(data []byte) []jsonLeaf {
 	if !json.Valid(data) {
 		return nil
 	}
-	if hasDuplicateObjectKey(json.NewDecoder(bytes.NewReader(data))) {
+	duplicateScanner := json.NewDecoder(bytes.NewReader(data))
+	duplicateScanner.UseNumber()
+	if hasDuplicateObjectKey(duplicateScanner) {
 		return nil
 	}
 	decoder := json.NewDecoder(bytes.NewReader(data))
@@ -111,6 +113,10 @@ func joinJSONPath(parent, child string) string {
 }
 
 func escapeJSONPathKey(key string) string {
+	// sjson interprets a leading colon as a path flag; escape it for both engines.
+	if len(key) > 0 && key[0] == ':' {
+		return `\` + gjson.Escape(key)
+	}
 	return gjson.Escape(key)
 }
 

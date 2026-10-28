@@ -118,11 +118,22 @@ func headerKeyIsBlacklisted(key string, opts Options) bool {
 
 func ParseRawRequest(rawRequest []byte, opts ...Options) (*ParsedRawRequest, error) {
 	opt := useOptions(opts...)
-	// Split the raw request into lines
-	scanner := bufio.NewScanner(bytes.NewReader(rawRequest))
+	headerBytes := rawRequest
+	var bodyBytes []byte
+	crlfSeparator := bytes.Index(rawRequest, []byte("\r\n\r\n"))
+	lfSeparator := bytes.Index(rawRequest, []byte("\n\n"))
+	if crlfSeparator >= 0 && (lfSeparator < 0 || crlfSeparator < lfSeparator) {
+		headerBytes = rawRequest[:crlfSeparator]
+		bodyBytes = rawRequest[crlfSeparator+4:]
+	} else if lfSeparator >= 0 {
+		headerBytes = rawRequest[:lfSeparator]
+		bodyBytes = rawRequest[lfSeparator+2:]
+	}
 
-	if len(rawRequest) > bufio.MaxScanTokenSize {
-		scanner.Buffer(make([]byte, 0, len(rawRequest)), len(rawRequest))
+	scanner := bufio.NewScanner(bytes.NewReader(headerBytes))
+
+	if len(headerBytes) > bufio.MaxScanTokenSize {
+		scanner.Buffer(make([]byte, 0, len(headerBytes)), len(headerBytes)+1)
 	}
 
 	// Read the request line (first line)
@@ -166,16 +177,11 @@ func ParseRawRequest(rawRequest []byte, opts ...Options) (*ParsedRawRequest, err
 		})
 	}
 
-	// Parse the body if present
-	fullBodyBytes := make([]byte, 0)
-	if scanner.Scan() {
-		bodyBytes := scanner.Bytes()
-
-		if len(bodyBytes) > 0 {
-			// apped the body of the request
-			fullBodyBytes = append(fullBodyBytes, bodyBytes...)
-		}
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("invalid raw request: %w", err)
 	}
+
+	fullBodyBytes := bytes.Clone(bodyBytes)
 
 	reqBodyType := None
 

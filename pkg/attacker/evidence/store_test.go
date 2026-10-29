@@ -67,6 +67,9 @@ func TestPrivateEvidenceRedactsMessagesAndPreservesProvenance(t *testing.T) {
 	if err != nil || loaded.Inputs["test"] != hashes["test"] {
 		t.Fatalf("recipe=%#v err=%v", loaded, err)
 	}
+	if len(loaded.ExecutableSHA256) != 64 {
+		t.Fatal("recipe cannot identify the running executable")
+	}
 	if err := os.WriteFile(input, []byte("changed source"), 0600); err != nil {
 		t.Fatal(err)
 	}

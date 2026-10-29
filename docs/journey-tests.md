@@ -74,7 +74,7 @@ An assessed case is `pass` when every check passes and `fail` when a configured 
 
 `--out` must name a new directory. It is created with mode 0700; JSON artifacts use mode 0600:
 
-- `plan.json` records the test-file location, case IDs, logical input SHA-256 hashes, target, and runtime/build metadata.
+- `plan.json` records the test-file location, case IDs, logical input SHA-256 hashes, target, runtime/build metadata, and the executable digest when it is readable. VCS metadata depends on the Go build and may be absent; the binary digest still identifies a development executable.
 - `baseline.json` and each `<case>.json` record the completed trial, pre-hook mutation/prepared/sent request metadata, response metadata, body sizes/hashes, and check outcomes.
 - `result.json` records the aggregate result and interruption status.
 

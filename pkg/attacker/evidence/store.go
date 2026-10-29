@@ -20,15 +20,16 @@ import (
 )
 
 type Recipe struct {
-	FormatVersion int               `json:"format_version"`
-	TestPath      string            `json:"test_path"`
-	Inputs        map[string]string `json:"inputs"`
-	Cases         []string          `json:"cases"`
-	BaseURL       string            `json:"base_url"`
-	GoVersion     string            `json:"go_version"`
-	ToolVersion   string            `json:"tool_version"`
-	Revision      string            `json:"revision,omitempty"`
-	Modified      bool              `json:"modified,omitempty"`
+	FormatVersion    int               `json:"format_version"`
+	TestPath         string            `json:"test_path"`
+	Inputs           map[string]string `json:"inputs"`
+	Cases            []string          `json:"cases"`
+	BaseURL          string            `json:"base_url"`
+	GoVersion        string            `json:"go_version"`
+	ToolVersion      string            `json:"tool_version"`
+	Revision         string            `json:"revision,omitempty"`
+	Modified         bool              `json:"modified,omitempty"`
+	ExecutableSHA256 string            `json:"executable_sha256,omitempty"`
 }
 type Store struct {
 	directory string
@@ -82,13 +83,25 @@ func NewStore(directory string, recipe Recipe, redaction campaign.Redaction, inc
 	recipe.GoVersion = runtime.Version()
 	recipe.ToolVersion = "(devel)"
 	if info, ok := debug.ReadBuildInfo(); ok {
-		recipe.ToolVersion = info.Main.Version
+		if info.Main.Version != "" {
+			recipe.ToolVersion = info.Main.Version
+		}
 		for _, setting := range info.Settings {
 			if setting.Key == "vcs.revision" {
 				recipe.Revision = setting.Value
 			}
 			if setting.Key == "vcs.modified" {
 				recipe.Modified = setting.Value == "true"
+			}
+		}
+	}
+	if executable, err := os.Executable(); err == nil {
+		if file, err := os.Open(executable); err == nil {
+			digest := sha256.New()
+			_, copyErr := io.Copy(digest, file)
+			file.Close()
+			if copyErr == nil {
+				recipe.ExecutableSHA256 = hex.EncodeToString(digest.Sum(nil))
 			}
 		}
 	}

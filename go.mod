@@ -5,12 +5,15 @@ go 1.24
 toolchain go1.24.4
 
 require (
+	github.com/dop251/goja v0.0.0-20251201205617-2bb4c724c0f9
+	github.com/google/uuid v1.6.0
 	github.com/imroc/req/v3 v3.54.0
 	github.com/jedib0t/go-pretty/v6 v6.6.7
 	github.com/pquerna/otp v1.5.0
 	github.com/tidwall/gjson v1.18.0
 	github.com/tidwall/sjson v1.2.5
 	go.mercari.io/go-emv-code v0.1.5
+	golang.org/x/net v0.41.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -18,6 +21,9 @@ require (
 	github.com/andybalholm/brotli v1.2.0 // indirect
 	github.com/boombuler/barcode v1.0.1-0.20190219062509-6c824513bacc // indirect
 	github.com/cloudflare/circl v1.6.1 // indirect
+	github.com/dlclark/regexp2 v1.11.4 // indirect
+	github.com/go-sourcemap/sourcemap v2.1.3+incompatible // indirect
+	github.com/google/pprof v0.0.0-20240227163752-401108e1b7e7 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/icholy/digest v1.1.0 // indirect
@@ -32,7 +38,6 @@ require (
 	go.uber.org/mock v0.5.2 // indirect
 	golang.org/x/crypto v0.39.0 // indirect
 	golang.org/x/mod v0.25.0 // indirect
-	golang.org/x/net v0.41.0 // indirect
 	golang.org/x/sync v0.15.0 // indirect
 	golang.org/x/sys v0.33.0 // indirect
 	golang.org/x/text v0.26.0 // indirect

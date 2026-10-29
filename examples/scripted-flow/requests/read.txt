@@ -1,0 +1,3 @@
+GET /read?id=captured HTTP/1.1
+Host: captured.example
+

@@ -9,6 +9,12 @@ import (
 	"github.com/tidwall/sjson"
 )
 
+func NewRequest(modifier func(r *req.Request)) Request {
+	r := req.R()
+	modifier(r)
+	return Request{r}
+}
+
 type Request struct {
 	*req.Request
 }

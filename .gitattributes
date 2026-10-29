@@ -1,0 +1,2 @@
+# Raw HTTP requests require an empty line between their headers and body.
+examples/scripted-flow/requests/*.txt whitespace=-blank-at-eof

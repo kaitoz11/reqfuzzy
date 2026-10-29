@@ -85,6 +85,18 @@ func Validate(candidate Flow) error {
 			}
 			variables[extraction.Name] = struct{}{}
 		}
+		if len(step.Provides) > 0 && step.AfterResponse == "" {
+			return fmt.Errorf("flow step %q: provides requires after_response", step.ID)
+		}
+		for _, name := range step.Provides {
+			if strings.TrimSpace(name) == "" {
+				return fmt.Errorf("flow step %q: provided variable name is required", step.ID)
+			}
+			if _, exists := variables[name]; exists {
+				return fmt.Errorf("flow step %q: duplicate variable %q", step.ID, name)
+			}
+			variables[name] = struct{}{}
+		}
 	}
 	return nil
 }

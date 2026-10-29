@@ -1,0 +1,5 @@
+POST /create HTTP/1.1
+Host: captured.example
+Content-Type: application/json
+
+{"amount":10}

@@ -1,0 +1,6 @@
+version: 1
+origin: http://127.0.0.1:8099
+requests:
+  login: requests/login.txt
+  create: requests/create.txt
+  read: requests/read.txt

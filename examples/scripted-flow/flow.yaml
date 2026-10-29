@@ -1,0 +1,26 @@
+name: scripted-item-journey
+steps:
+  - id: login
+    request: login
+    expect_status: 200
+    after_response: session
+    provides: [token]
+  - id: create
+    request: create
+    bind:
+      - location: header
+        path: Authorization
+        variable: token
+        prefix: "Bearer "
+    before_send: sign
+    expect_status: 201
+    extract:
+      - name: item_id
+        json: id
+  - id: read
+    request: read
+    bind:
+      - location: query
+        path: id
+        variable: item_id
+    expect_status: 200

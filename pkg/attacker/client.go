@@ -16,18 +16,18 @@ type HClient struct {
 
 func NewHClient() *HClient {
 	return &HClient{
-		httpClient: req.C().
+		httpClient: observeClient(req.C().
 			SetRedirectPolicy(req.NoRedirectPolicy()).
-			SetUserAgent(DefaultUserAgent),
+			SetUserAgent(DefaultUserAgent)),
 		contextData: make(map[string]string),
 	}
 }
 
 func NewHClientWith(client *req.Client) *HClient {
 	return &HClient{
-		httpClient: client.
+		httpClient: observeClient(client.
 			SetRedirectPolicy(req.NoRedirectPolicy()).
-			SetUserAgent(DefaultUserAgent),
+			SetUserAgent(DefaultUserAgent)),
 		contextData: make(map[string]string),
 	}
 }

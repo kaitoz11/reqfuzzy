@@ -7,7 +7,6 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/imroc/req/v3"
 	"github.com/kaitoz11/reqfuzzy/pkg/attacker"
 	"github.com/kaitoz11/reqfuzzy/pkg/attacker/rawreq"
 	"github.com/tidwall/gjson"
@@ -163,9 +162,9 @@ func (r Runner) Run(ctx context.Context, definition Flow, mutation *StepMutation
 			Extracted:       make(Variables),
 			MutationRequest: mutationRequest,
 		}
-		bodyTrace := recordBody(request)
-		response, err := client.SendRequest(request)
-		trace.SentRequest = sentSnapshot(request, response, bodyTrace)
+		bodyTrace := &bodyRecorder{}
+		response, err := client.SendRequestObserved(request, bodyTrace.observe)
+		trace.SentRequest = bodyTrace.snapshot()
 		if err != nil {
 			result.Steps = append(result.Steps, trace)
 			return failRun(result, step.ID, TransportError, err)
@@ -333,23 +332,4 @@ func snapshot(request attacker.Request) RequestSnapshot {
 		Body:       append([]byte(nil), request.Body...),
 		BodySource: "prepared-cache",
 	}
-}
-
-func sentSnapshot(request attacker.Request, response attacker.Response, bodyTrace *bodyRecorder) *RequestSnapshot {
-	raw := request.RawRequest
-	if response.Response != nil && response.Response.Response != nil && response.Response.Response.Request != nil {
-		raw = response.Response.Response.Request
-	}
-	if raw == nil || raw.URL == nil {
-		return nil
-	}
-	headers := raw.Header.Clone()
-	delete(headers, req.HeaderOderKey)
-	delete(headers, req.PseudoHeaderOderKey)
-	body, known := bodyTrace.snapshot(raw, response.Response != nil && response.Response.Response != nil)
-	source := "captured"
-	if !known {
-		source = "unavailable"
-	}
-	return &RequestSnapshot{Method: raw.Method, RawURL: raw.URL.String(), Host: raw.Host, Query: raw.URL.Query(), Headers: headers, Body: body, BodySource: source}
 }

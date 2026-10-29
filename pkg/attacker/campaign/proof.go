@@ -16,7 +16,7 @@ type selection struct {
 	raw    []byte
 }
 
-func selectRequest(message flow.RequestSnapshot, target Target) (selection, error) {
+func selectRequest(message flow.RequestSnapshot, target Target, action string) (selection, error) {
 	switch target.Location {
 	case "json":
 		if message.BodySource == "unavailable" {
@@ -28,6 +28,19 @@ func selectRequest(message flow.RequestSnapshot, target Target) (selection, erro
 		}
 		if err := jsonutil.ValidateUnique(message.Body); err != nil {
 			return selection{}, err
+		}
+		if action == "remove" {
+			parent, _, err := jsonutil.MutationParent(target.Path)
+			if err != nil {
+				return selection{}, err
+			}
+			container := gjson.ParseBytes(message.Body)
+			if parent != "" {
+				container = gjson.GetBytes(message.Body, parent)
+			}
+			if container.IsArray() {
+				return selection{true, []byte(container.Raw)}, nil
+			}
 		}
 		found := gjson.GetBytes(message.Body, lookup)
 		if !found.Exists() {
@@ -68,11 +81,11 @@ func mutationSurvived(result flow.RunResult, target Target, action string) (stri
 		if target.AllowTransform {
 			return "transformed", true
 		}
-		expected, err := selectRequest(*step.MutationRequest, target)
+		expected, err := selectRequest(*step.MutationRequest, target, action)
 		if err != nil {
 			return "unverified", false
 		}
-		actual, err := selectRequest(*step.SentRequest, target)
+		actual, err := selectRequest(*step.SentRequest, target, action)
 		if err != nil {
 			return "unverified", false
 		}
@@ -87,7 +100,7 @@ func mutationSurvived(result flow.RunResult, target Target, action string) (stri
 		}
 		equal := bytes.Equal(expected.raw, actual.raw)
 		if target.Location == "json" {
-			equal, err = compare(Scalar(actual.raw), Scalar(expected.raw), "eq")
+			equal, err = jsonutil.EqualJSON(actual.raw, expected.raw)
 			if err != nil {
 				return "unverified", false
 			}

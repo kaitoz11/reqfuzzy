@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/kaitoz11/reqfuzzy/pkg/attacker"
@@ -87,11 +88,12 @@ func BuildMutation(spec MutationSpec) (Mutation, error) {
 			return err
 		}
 		if spec.Action == "remove" {
+			before := append([]byte(nil), request.Body...)
 			if err := removeValue(request, spec.Location, spec.Path); err != nil {
 				return err
 			}
 			if spec.Location == "json" {
-				return jsonMutationApplied(request, lookup, nil, true)
+				return jsonRemovalApplied(before, request.Body, spec.Path)
 			}
 			return nil
 		}
@@ -112,6 +114,50 @@ func BuildMutation(spec MutationSpec) (Mutation, error) {
 		}
 		return nil
 	}, nil
+}
+
+func jsonRemovalApplied(before, after []byte, path string) error {
+	parent, key, err := jsonutil.MutationParent(path)
+	if err != nil {
+		return err
+	}
+	container := gjson.ParseBytes(before)
+	remaining := gjson.ParseBytes(after)
+	if parent != "" {
+		container = gjson.GetBytes(before, parent)
+		remaining = gjson.GetBytes(after, parent)
+	}
+	if container.IsArray() {
+		index, err := strconv.Atoi(key)
+		items := container.Array()
+		if err != nil || index < 0 || index >= len(items) || !remaining.IsArray() {
+			return fmt.Errorf("JSON array removal did not apply")
+		}
+		var expected bytes.Buffer
+		expected.WriteByte('[')
+		first := true
+		for position, item := range items {
+			if position == index {
+				continue
+			}
+			if !first {
+				expected.WriteByte(',')
+			}
+			first = false
+			expected.WriteString(item.Raw)
+		}
+		expected.WriteByte(']')
+		same, err := jsonutil.EqualJSON(expected.Bytes(), []byte(remaining.Raw))
+		if err != nil || !same {
+			return fmt.Errorf("JSON array removal did not apply structurally")
+		}
+		return nil
+	}
+	lookup, _ := jsonutil.MutationLookupPath(path)
+	if gjson.GetBytes(after, lookup).Exists() {
+		return fmt.Errorf("JSON removal did not apply at the requested field")
+	}
+	return nil
 }
 
 func jsonMutationApplied(request attacker.Request, lookup string, expected []byte, remove bool) error {

@@ -13,6 +13,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/imroc/req/v3"
 	"github.com/kaitoz11/reqfuzzy/pkg/attacker"
 	"github.com/kaitoz11/reqfuzzy/pkg/attacker/campaign"
 	"github.com/kaitoz11/reqfuzzy/pkg/attacker/flow"
@@ -142,7 +143,7 @@ func TestStreamBodyCannotUseCachedMutationAsSentEvidence(t *testing.T) {
 	}
 }
 
-func TestMiddlewareBodyProviderIsMarkedUnavailable(t *testing.T) {
+func TestMiddlewareBodyProviderUsesActualMarshaledBody(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
 			Amount int `json:"amount"`
@@ -176,7 +177,100 @@ func TestMiddlewareBodyProviderIsMarkedUnavailable(t *testing.T) {
 		t.Fatalf("unknown body became assessable: %s", result.Outcome)
 	}
 	sent := result.Cases[0].Flow.Steps[0].SentRequest
-	if sent == nil || sent.BodySource != "unavailable" || len(sent.Body) != 0 {
-		t.Fatalf("middleware body used cached evidence: %#v", sent)
+	if sent == nil || sent.BodySource != "captured" || string(sent.Body) != `{"amount":10}` {
+		t.Fatalf("middleware body was not captured from transport: %#v", sent)
+	}
+}
+
+func TestInspectionReadCannotMasqueradeAsTransportBody(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Amount int `json:"amount"`
+		}
+		json.NewDecoder(r.Body).Decode(&body)
+		json.NewEncoder(w).Encode(map[string]int{"received": body.Amount})
+	}))
+	defer server.Close()
+	path := filepath.Join(t.TempDir(), "request.txt")
+	if err := os.WriteFile(path, []byte("POST / HTTP/1.1\r\nContent-Type: application/json\r\n\r\n{\"amount\":10}"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	store := attacker.NewRequestStore()
+	store.RegisterRequestFilePath("send", path)
+	status := 200
+	main := flow.Flow{Name: "inspection", Steps: []flow.Step{{ID: "send", Request: "send", ExpectStatus: &status}}}
+	runner := flow.Runner{Store: store, NewClient: func(string) (*attacker.HClient, error) {
+		c := attacker.NewHClient()
+		c.UseBaseURL(server.URL)
+		c.WithUpdatedClient(func(client *req.Client) {
+			client.OnBeforeRequest(func(_ *req.Client, request *req.Request) error {
+				body, err := request.GetBody()
+				if err != nil {
+					return err
+				}
+				io.Copy(io.Discard, body)
+				body.Close()
+				request.SetBodyString(`{"amount":10}`)
+				return nil
+			})
+		})
+		return c, nil
+	}}
+	spec := campaign.Spec{Version: 1, Name: "inspection", Target: campaign.Target{Step: "send", Location: "json", Path: "amount"}, ObserveStatuses: []int{200}, Cases: []campaign.Case{{ID: "negative", Action: "set", Value: campaign.Scalar("-1")}}, Checks: []campaign.Check{{ID: "same", Step: "send", Select: "json", Path: "received", Op: "eq", Baseline: true}}}
+	result, err := campaign.Run(context.Background(), runner, main, nil, spec, campaign.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Outcome != campaign.Inconclusive {
+		t.Fatalf("inspection bytes were treated as sent: %s", result.Outcome)
+	}
+	sent := result.Cases[0].Flow.Steps[0].SentRequest
+	if sent == nil || string(sent.Body) != `{"amount":10}` {
+		t.Fatalf("actual transport replacement missing: %#v", sent)
+	}
+}
+
+func TestArrayRemovalProofChecksShiftedContainer(t *testing.T) {
+	for _, restore := range []bool{false, true} {
+		t.Run(fmt.Sprint(restore), func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				var body struct {
+					Items []int `json:"items"`
+				}
+				json.NewDecoder(r.Body).Decode(&body)
+				json.NewEncoder(w).Encode(map[string]int{"count": len(body.Items)})
+			}))
+			defer server.Close()
+			path := filepath.Join(t.TempDir(), "request.txt")
+			if err := os.WriteFile(path, []byte("POST / HTTP/1.1\r\nContent-Type: application/json\r\n\r\n{\"items\":[10,10]}"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			store := attacker.NewRequestStore()
+			store.RegisterRequestFilePath("send", path)
+			status := 200
+			main := flow.Flow{Name: "array-remove", Steps: []flow.Step{{ID: "send", Request: "send", ExpectStatus: &status, BeforeSend: "prepare"}}}
+			runner := flow.Runner{Store: store, NewClient: func(string) (*attacker.HClient, error) {
+				c := attacker.NewHClient()
+				c.UseBaseURL(server.URL)
+				return c, nil
+			}, BeforeSend: map[string]flow.BeforeSend{"prepare": func(request attacker.Request, _ flow.Variables) error {
+				if restore {
+					request.SetBodyString(`{"items":[10,10]}`)
+				}
+				return nil
+			}}}
+			spec := campaign.Spec{Version: 1, Name: "array-remove", Target: campaign.Target{Step: "send", Location: "json", Path: "items.0"}, ObserveStatuses: []int{200}, Cases: []campaign.Case{{ID: "remove-first", Action: "remove"}}, Checks: []campaign.Check{{ID: "same-count", Step: "send", Select: "json", Path: "count", Op: "eq", Baseline: true}}}
+			result, err := campaign.Run(context.Background(), runner, main, nil, spec, campaign.Options{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := campaign.Fail
+			if restore {
+				want = campaign.Inconclusive
+			}
+			if result.Outcome != want {
+				t.Fatalf("array removal outcome=%s want=%s", result.Outcome, want)
+			}
+		})
 	}
 }

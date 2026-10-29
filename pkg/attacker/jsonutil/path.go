@@ -11,8 +11,33 @@ import (
 // SJSON's leading ':' forces an object key and is not part of that key.
 // Selectors, modifiers, wildcard queries, and append indices are not field addresses.
 func MutationLookupPath(path string) (string, error) {
+	parts, err := mutationParts(path)
+	if err != nil {
+		return "", err
+	}
+	for index := range parts {
+		parts[index] = gjson.Escape(parts[index])
+	}
+	return strings.Join(parts, "."), nil
+}
+
+// MutationParent returns the parent lookup and decoded final field/index.
+func MutationParent(path string) (string, string, error) {
+	parts, err := mutationParts(path)
+	if err != nil {
+		return "", "", err
+	}
+	key := parts[len(parts)-1]
+	parents := parts[:len(parts)-1]
+	for index := range parents {
+		parents[index] = gjson.Escape(parents[index])
+	}
+	return strings.Join(parents, "."), key, nil
+}
+
+func mutationParts(path string) ([]string, error) {
 	if path == "" {
-		return "", fmt.Errorf("JSON mutation path is empty")
+		return nil, fmt.Errorf("JSON mutation path is empty")
 	}
 	var parts []string
 	var part strings.Builder
@@ -26,7 +51,7 @@ func MutationLookupPath(path string) (string, error) {
 		if value == "-1" && !forced {
 			return fmt.Errorf("JSON append indices require an explicit array action")
 		}
-		parts = append(parts, gjson.Escape(value))
+		parts = append(parts, value)
 		part.Reset()
 		start = true
 		forced = false
@@ -37,7 +62,7 @@ func MutationLookupPath(path string) (string, error) {
 		if character == '\\' {
 			index++
 			if index == len(path) {
-				return "", fmt.Errorf("JSON mutation path ends in an escape")
+				return nil, fmt.Errorf("JSON mutation path ends in an escape")
 			}
 			part.WriteByte(path[index])
 			start = false
@@ -45,7 +70,7 @@ func MutationLookupPath(path string) (string, error) {
 		}
 		if character == '.' {
 			if err := finish(); err != nil {
-				return "", err
+				return nil, err
 			}
 			continue
 		}
@@ -55,13 +80,13 @@ func MutationLookupPath(path string) (string, error) {
 			continue
 		}
 		if strings.ContainsRune("|#@*?[]{}()!", rune(character)) {
-			return "", fmt.Errorf("JSON mutation paths require literal fields and array indices; escape special key characters")
+			return nil, fmt.Errorf("JSON mutation paths require literal fields and array indices; escape special key characters")
 		}
 		part.WriteByte(character)
 		start = false
 	}
 	if err := finish(); err != nil {
-		return "", err
+		return nil, err
 	}
-	return strings.Join(parts, "."), nil
+	return parts, nil
 }

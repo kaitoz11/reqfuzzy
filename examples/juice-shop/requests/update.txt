@@ -1,0 +1,5 @@
+PUT /api/BasketItems/0 HTTP/1.1
+Host: captured.juice-shop
+Content-Type: application/json
+
+{"quantity":2}

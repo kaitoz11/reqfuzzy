@@ -1,0 +1,5 @@
+POST /rest/user/login HTTP/1.1
+Host: captured.juice-shop
+Content-Type: application/json
+
+{"email":"placeholder@example.invalid","password":"Local-Acceptance-Only-123!"}

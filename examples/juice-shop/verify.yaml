@@ -1,0 +1,7 @@
+name: persisted-order
+steps:
+  - id: history
+    request: history
+    expect_status: 200
+    bind:
+      - {location: header, path: Authorization, variable: token, prefix: "Bearer "}

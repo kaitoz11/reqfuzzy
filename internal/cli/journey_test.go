@@ -60,7 +60,13 @@ func (c *captureTransport) RoundTrip(request *http.Request) (*http.Response, err
 	if len(body) > 0 {
 		captured["postData"] = map[string]string{"mimeType": "application/json", "text": string(body)}
 	}
-	c.entries = append(c.entries, map[string]any{"request": captured, "response": map[string]any{"status": response.StatusCode, "content": map[string]string{"text": string(received), "mimeType": "application/json"}}})
+	responseHeaders := []map[string]string{}
+	for name, values := range response.Header {
+		for _, value := range values {
+			responseHeaders = append(responseHeaders, map[string]string{"name": name, "value": value})
+		}
+	}
+	c.entries = append(c.entries, map[string]any{"request": captured, "response": map[string]any{"status": response.StatusCode, "headers": responseHeaders, "content": map[string]string{"text": string(received), "mimeType": "application/json"}}})
 	return response, nil
 }
 
@@ -126,17 +132,19 @@ func capturedReferenceProject(t *testing.T, vulnerable bool) (string, string, *a
 	if len(imported.Steps) != 4 {
 		t.Fatalf("capture steps=%d", len(imported.Steps))
 	}
+	// The reference's one-digit session ID is below inference thresholds, so
+	// declare that cookie dependency explicitly alongside the inferred values.
 	main := flow.Flow{Name: "reference-transfer", Steps: []flow.Step{
-		{ID: "session", Request: imported.Steps[0].Request, Extract: []flow.Extraction{{Name: "token", JSONPath: "access_token"}, {Name: "signing_key", JSONPath: "signing_key"}, {Name: "initial_balance", JSONPath: "balance"}}},
-		{ID: "nonce", Request: imported.Steps[1].Request, Bind: []flow.Binding{{Location: "header", Path: "Authorization", Variable: "token", Prefix: "Bearer "}}, Extract: []flow.Extraction{{Name: "nonce", JSONPath: "nonce"}}},
-		{ID: "transfer", Request: imported.Steps[2].Request, Bind: []flow.Binding{{Location: "header", Path: "Authorization", Variable: "token", Prefix: "Bearer "}, {Location: "json", Path: "nonce", Variable: "nonce"}}, BeforeSend: "sign"},
+		{ID: "session", Request: imported.Steps[0].Request, Extract: []flow.Extraction{{Name: "token", JSONPath: "access_token"}, {Name: "signing_key", JSONPath: "signing_key"}, {Name: "initial_balance", JSONPath: "balance"}, {Name: "sid", Cookie: "reference_sid"}}},
+		{ID: "nonce", Request: imported.Steps[1].Request, Bind: []flow.Binding{{Location: "header", Path: "Authorization", Variable: "token", Prefix: "Bearer "}, {Location: "cookie", Path: "reference_sid", Variable: "sid"}}, Extract: []flow.Extraction{{Name: "nonce", JSONPath: "nonce"}}},
+		{ID: "transfer", Request: imported.Steps[2].Request, Bind: []flow.Binding{{Location: "header", Path: "Authorization", Variable: "token", Prefix: "Bearer "}, {Location: "json", Path: "nonce", Variable: "nonce"}, {Location: "cookie", Path: "reference_sid", Variable: "sid"}}, BeforeSend: "sign"},
 	}}
 	ok := 200
 	created := 201
 	main.Steps[0].ExpectStatus = &ok
 	main.Steps[1].ExpectStatus = &ok
 	main.Steps[2].ExpectStatus = &created
-	verification := flow.Flow{Name: "verify", Steps: []flow.Step{{ID: "balance", Request: imported.Steps[3].Request, Bind: []flow.Binding{{Location: "header", Path: "Authorization", Variable: "token", Prefix: "Bearer "}}, ExpectStatus: &ok}}}
+	verification := flow.Flow{Name: "verify", Steps: []flow.Step{{ID: "balance", Request: imported.Steps[3].Request, Bind: []flow.Binding{{Location: "header", Path: "Authorization", Variable: "token", Prefix: "Bearer "}, {Location: "cookie", Path: "reference_sid", Variable: "sid"}}, ExpectStatus: &ok}}}
 	data, _ = yaml.Marshal(main)
 	write(t, filepath.Join(project, "flow.yaml"), data)
 	data, _ = yaml.Marshal(verification)

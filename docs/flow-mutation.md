@@ -61,7 +61,7 @@ steps:
     expect_status: 200
 ```
 
-`json` uses `gjson` paths for extraction and `sjson` paths for binding. A JSON binding preserves the captured value's type and numeric precision. `header` and `query` bindings use its text form. A missing variable, missing scalar, unknown request, or unmet status stops the run and returns the completed trace.
+`json` uses `gjson` paths for extraction and `sjson` paths for binding. Extraction also supports `cookie: NAME` for one named response `Set-Cookie`. A JSON binding preserves the captured value's type and numeric precision. Other binding locations use its text form. A missing variable, missing scalar/cookie, unknown request, or unmet status stops the run and returns the completed trace.
 
 Header bindings replace any captured header with the same name regardless of case. Query bindings replace all captured values for that key while keeping unrelated query entries and their original encodings. The runner drops captured `Cookie` headers so each actor's client jar supplies cookies issued during the current run. If a flow starts with an existing session, configure that actor's client or a request hook to provide it.
 
@@ -78,7 +78,7 @@ Indices are canonical nonnegative integers encoded as strings. Counting starts a
 
 The value's exact text, including an optional `prefix`, is escaped as one segment. An ID containing `/`, `?`, or `#` cannot insert another segment, query, or fragment. Dot-only values are percent-escaped; other segments retain their existing escapes and the raw query is preserved. A binding that would create a leading `//` is rejected. Bindings run before mutations and final hooks, and appear as edges in `flow show`.
 
-Path segments and UTF-8 URL-encoded form fields also support set/remove/append/prepend mutations. Form bindings use `location: form` with a decoded field name. See [request locations](request-locations.md) for encoding, repeated-key behavior, and mutation proof.
+Path segments, UTF-8 URL-encoded form fields, and named cookies also support set/remove/append/prepend mutations. Form bindings use `location: form` with a decoded field name; cookie bindings use `location: cookie` with a case-sensitive name. See [request locations](request-locations.md) for encoding, repeated-key behavior, request-scoped cookie overlays, and mutation proof.
 
 ## Run a comparison
 

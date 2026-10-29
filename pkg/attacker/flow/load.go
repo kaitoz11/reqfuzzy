@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"github.com/kaitoz11/reqfuzzy/pkg/attacker/cookiefield"
 	"io"
 	"strings"
 
@@ -82,9 +83,14 @@ func ValidateWithVariables(candidate Flow, initial Variables) error {
 				return fmt.Errorf("flow step %q: binding path and variable are required", step.ID)
 			}
 			switch binding.Location {
-			case "header", "query", "json", "path", "form":
+			case "header", "query", "json", "path", "form", "cookie":
 			default:
 				return fmt.Errorf("flow step %q: unsupported binding location %q", step.ID, binding.Location)
+			}
+			if binding.Location == "cookie" {
+				if err := cookiefield.Valid(binding.Path, ""); err != nil {
+					return fmt.Errorf("flow step %q: %w", step.ID, err)
+				}
 			}
 			if binding.Location == "path" {
 				if _, err := pathIndex(binding.Path); err != nil {
@@ -99,8 +105,13 @@ func ValidateWithVariables(candidate Flow, initial Variables) error {
 			}
 		}
 		for _, extraction := range step.Extract {
-			if extraction.Name == "" || extraction.JSONPath == "" {
-				return fmt.Errorf("flow step %q: extraction name and json path are required", step.ID)
+			if extraction.Name == "" || (extraction.JSONPath == "") == (extraction.Cookie == "") {
+				return fmt.Errorf("flow step %q: extraction requires a name and exactly one json or cookie selector", step.ID)
+			}
+			if extraction.Cookie != "" {
+				if err := cookiefield.Valid(extraction.Cookie, ""); err != nil {
+					return fmt.Errorf("flow step %q: %w", step.ID, err)
+				}
 			}
 			if _, exists := variables[extraction.Name]; exists {
 				return fmt.Errorf("flow step %q: duplicate variable %q", step.ID, extraction.Name)

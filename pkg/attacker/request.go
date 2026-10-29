@@ -30,6 +30,9 @@ func (r Request) Copy(client *req.Client) Request {
 	request.SetContextData(rawreq.RequestBodyType, r.GetContextData(rawreq.RequestBodyType))
 
 	request.SetBodyBytes(r.Body)
+	for name := range cookieEdits(r) {
+		Request{request}.markCookieEdit(name)
+	}
 
 	return Request{Request: request}
 }

@@ -7,11 +7,13 @@ steps:
       - {name: token, json: access_token}
       - {name: signing_key, json: signing_key}
       - {name: initial_balance, json: balance}
+      - {name: sid, cookie: reference_sid}
   - id: nonce
     request: nonce
     expect_status: 200
     bind:
       - {location: header, path: Authorization, variable: token, prefix: "Bearer "}
+      - {location: cookie, path: reference_sid, variable: sid}
     extract:
       - {name: nonce, json: nonce}
   - id: transfer
@@ -19,6 +21,7 @@ steps:
     expect_status: 201
     bind:
       - {location: header, path: Authorization, variable: token, prefix: "Bearer "}
+      - {location: cookie, path: reference_sid, variable: sid}
       - {location: json, path: nonce, variable: nonce}
     before_send: sign
     extract:

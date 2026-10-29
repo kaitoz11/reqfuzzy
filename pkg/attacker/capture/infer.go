@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/kaitoz11/reqfuzzy/pkg/attacker/cookiefield"
 	"github.com/kaitoz11/reqfuzzy/pkg/attacker/flow"
 	"github.com/kaitoz11/reqfuzzy/pkg/attacker/rawreq"
 	"github.com/kaitoz11/reqfuzzy/pkg/attacker/urlform"
@@ -16,7 +17,8 @@ import (
 
 type Link struct {
 	FromStep     string
-	FromJSONPath string
+	FromJSONPath string `json:",omitempty"`
+	FromCookie   string `json:",omitempty"`
 	ToStep       string
 	ToLocation   string
 	ToPath       string
@@ -32,6 +34,7 @@ type Suggestion struct {
 type sourceValue struct {
 	StepIndex int
 	Leaf      jsonLeaf
+	Cookie    string
 }
 
 type requestValue struct {
@@ -70,6 +73,17 @@ func SuggestFlow(c Capture) (Suggestion, error) {
 			}
 			for _, destination := range values {
 				candidates := sources[destination.Text]
+				if destination.Location == "cookie" {
+					var sameName []sourceValue
+					for _, source := range candidates {
+						if source.Cookie == destination.Path {
+							sameName = append(sameName, source)
+						}
+					}
+					if len(sameName) > 0 {
+						candidates = sameName
+					}
+				}
 				if destination.Kind != "" || destination.Prefix != "" {
 					matching := make([]sourceValue, 0, len(candidates))
 					for _, candidate := range candidates {
@@ -87,12 +101,21 @@ func SuggestFlow(c Capture) (Suggestion, error) {
 					continue
 				}
 				source := candidates[0]
-				key := fmt.Sprintf("%d:%s", source.StepIndex, source.Leaf.Path)
+				key := fmt.Sprintf("%d:%s:%s", source.StepIndex, source.Cookie, source.Leaf.Path)
 				variable := variables[key]
 				if variable == "" {
-					variable = variableName(source.StepIndex, source.Leaf.Path, usedNames)
+					path := source.Leaf.Path
+					if source.Cookie != "" {
+						path = "cookie_" + source.Cookie
+					}
+					variable = variableName(source.StepIndex, path, usedNames)
 					variables[key] = variable
-					suggestion.Flow.Steps[source.StepIndex].Extract = append(suggestion.Flow.Steps[source.StepIndex].Extract, flow.Extraction{Name: variable, JSONPath: source.Leaf.Path})
+					extraction := flow.Extraction{Name: variable, JSONPath: source.Leaf.Path}
+					if source.Cookie != "" {
+						extraction.JSONPath = ""
+						extraction.Cookie = source.Cookie
+					}
+					suggestion.Flow.Steps[source.StepIndex].Extract = append(suggestion.Flow.Steps[source.StepIndex].Extract, extraction)
 				}
 				suggestion.Flow.Steps[targetIndex].Bind = append(suggestion.Flow.Steps[targetIndex].Bind, flow.Binding{Location: destination.Location, Path: destination.Path, Variable: variable, Prefix: destination.Prefix})
 				confidence := "medium"
@@ -100,16 +123,31 @@ func SuggestFlow(c Capture) (Suggestion, error) {
 					confidence = "high"
 				}
 				suggestion.Links = append(suggestion.Links, Link{
-					FromStep: c.Exchanges[source.StepIndex].Name, FromJSONPath: source.Leaf.Path,
+					FromStep: c.Exchanges[source.StepIndex].Name, FromJSONPath: source.Leaf.Path, FromCookie: source.Cookie,
 					ToStep: exchange.Name, ToLocation: destination.Location, ToPath: destination.Path,
 					Prefix: destination.Prefix, Confidence: confidence,
 				})
+				if source.Cookie != "" {
+					suggestion.Links[len(suggestion.Links)-1].FromJSONPath = ""
+				}
 			}
 		}
 		if exchange.ResponseBodyPresent {
 			for _, leaf := range jsonLeaves(exchange.ResponseBody) {
 				if eligibleCandidate(leaf) {
 					sources[leaf.Text] = append(sources[leaf.Text], sourceValue{StepIndex: targetIndex, Leaf: leaf})
+				}
+			}
+		}
+		if cookies, err := cookiefield.ResponseCookies(exchange.ResponseHeaders); err == nil {
+			counts := make(map[string]int)
+			for _, cookie := range cookies {
+				counts[cookie.Name]++
+			}
+			for _, cookie := range cookies {
+				leaf := jsonLeaf{Path: cookie.Name, Kind: "string", Text: cookie.Value}
+				if counts[cookie.Name] == 1 && eligibleCandidate(leaf) {
+					sources[leaf.Text] = append(sources[leaf.Text], sourceValue{StepIndex: targetIndex, Leaf: leaf, Cookie: cookie.Name})
 				}
 			}
 		}
@@ -177,6 +215,17 @@ func requestValues(exchange Exchange) ([]requestValue, error) {
 	headers := make(http.Header)
 	for _, header := range parsed.Headers {
 		headers.Add(header.Key, header.Value)
+	}
+	if cookies, err := cookiefield.Parse(headers); err == nil {
+		counts := make(map[string]int)
+		for _, cookie := range cookies {
+			counts[cookie.Name]++
+		}
+		for _, cookie := range cookies {
+			if counts[cookie.Name] == 1 {
+				values = append(values, requestValue{Location: "cookie", Path: cookie.Name, Text: cookie.Value})
+			}
+		}
 	}
 	if urlform.IsForm(headers) {
 		fields, err := urlform.Parse(headers, parsed.Body)

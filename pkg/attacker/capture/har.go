@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"unicode/utf8"
 )
 
@@ -14,6 +15,7 @@ type Exchange struct {
 	URL                 string
 	RequestRaw          []byte
 	ResponseStatus      int
+	ResponseHeaders     http.Header
 	ResponseBody        []byte
 	ResponseBodyPresent bool
 }
@@ -54,7 +56,8 @@ type harPostData struct {
 }
 
 type harResponse struct {
-	Status  int `json:"status"`
+	Status  int            `json:"status"`
+	Headers []harNameValue `json:"headers"`
 	Content struct {
 		Text     *string `json:"text"`
 		Encoding string  `json:"encoding"`
@@ -86,6 +89,13 @@ func ParseHAR(data []byte) (Capture, error) {
 		exchange := Exchange{Name: name, Method: entry.Request.Method, URL: entry.Request.URL, RequestRaw: raw}
 		if entry.Response != nil {
 			exchange.ResponseStatus = entry.Response.Status
+			exchange.ResponseHeaders = make(http.Header)
+			for _, header := range entry.Response.Headers {
+				if !validHeader(header) {
+					return Capture{}, fmt.Errorf("HAR entry %d: invalid response header name or value", index+1)
+				}
+				exchange.ResponseHeaders.Add(header.Name, header.Value)
+			}
 			if text := entry.Response.Content.Text; text != nil {
 				switch entry.Response.Content.Encoding {
 				case "":

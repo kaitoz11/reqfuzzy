@@ -23,7 +23,14 @@ bin/reqfuzzy flow compare --project .reqfuzzy/demo --base-url https://api.exampl
 
 Replay requires an explicit HTTP(S) base URL. Every captured target must be a relative path beginning with `/`; absolute, authority-relative, and malformed targets are rejected before any replay request. The CLI aligns Host with the selected target before a signing hook runs. Captured cookies are removed and each actor's fresh client jar carries cookies between steps. Different actor names use independent clients.
 
-`compare` accepts one set-value mutation. Locations are `json`, `header`, and `query`. For JSON, `--value` is a raw scalar such as `99`, `true`, or `'"text"'`; it preserves large numeric IDs. Header and query values are plain text. Header replacement is case insensitive; query replacement replaces the whole key, including repeated occurrences. The baseline and changed runs each replay the full journey with fresh clients.
+`compare` accepts one set-value mutation. Locations are `json`, `header`, and `query`. For JSON, `--value` is a raw scalar such as `99`, `true`, `null`, or `'"text"'`; it preserves large numeric IDs. Header and query values are plain text. Header replacement is case insensitive; query replacement replaces the whole key, including repeated occurrences. The baseline and changed runs each replay the full journey with fresh clients.
+
+For reusable mutation cases, explicit verdicts, verification after rejection, and protected evidence, use [journey tests](journey-tests.md):
+
+```sh
+bin/reqfuzzy flow test --project .reqfuzzy/demo --base-url https://api.example.test --test tests.yaml --out .reqfuzzy/runs/first --json
+bin/reqfuzzy flow replay --project .reqfuzzy/demo --base-url https://api.example.test --run .reqfuzzy/runs/first --case negative --out .reqfuzzy/runs/repeated --json
+```
 
 Use `--timeout 30s` for the command execution deadline and `--script-timeout 1s` for each JavaScript invocation. Those are the defaults. Ctrl-C cancels replay. Hooks are loaded from `PROJECT/hooks`; `--hooks DIR` explicitly chooses another script directory. Default hook symlinks must stay within the project, and hook names cannot contain path separators.
 
@@ -36,5 +43,6 @@ Human output lists step statuses and response SHA-256 hashes. `--json` emits exa
 | 0 | Import, inspection, or execution succeeded; differing responses are still successful execution. |
 | 1 | Arguments, project files, import data, or script preflight are invalid. |
 | 2 | Execution failed, timed out, or was canceled; completed step summaries are retained. |
+| 3 | A valid `flow test` or `flow replay` case violated a configured invariant. |
 
 See [script hooks](script-hooks.md) for dynamic request transformations and response logic, and the runnable project in `examples/scripted-flow`.

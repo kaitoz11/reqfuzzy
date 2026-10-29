@@ -1,0 +1,24 @@
+version: 1
+name: balance-never-increases
+target: {step: transfer, location: json, path: amount}
+observe_statuses: [201, 400, 422, 500]
+verify: verify.yaml
+cases:
+  - {id: negative, action: set, value: -10}
+  - {id: missing, action: remove}
+  - {id: null-amount, action: set, value: null}
+  - {id: text-amount, action: set, value: "unexpected"}
+checks:
+  - id: no-balance-increase
+    phase: verify
+    step: balance
+    select: json
+    path: balance
+    op: lte
+    variable: initial_balance
+  - id: no-server-error
+    phase: flow
+    step: transfer
+    select: status
+    op: lt
+    value: 500

@@ -2,6 +2,7 @@ package flow
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
@@ -23,20 +24,55 @@ type StepMutation struct {
 }
 
 type Runner struct {
-	Store         *attacker.RequestStore
-	NewClient     ClientFactory
-	BeforeSend    map[string]BeforeSend
-	AfterResponse map[string]AfterResponse
-	Prepare       BeforeSend
+	Store            *attacker.RequestStore
+	NewClient        ClientFactory
+	BeforeSend       map[string]BeforeSend
+	AfterResponse    map[string]AfterResponse
+	Prepare          BeforeSend
+	Initialize       BeforeSend
+	InitialVariables Variables
+}
+
+func (r Runner) Preflight(definition Flow) error {
+	if err := ValidateWithVariables(definition, r.InitialVariables); err != nil {
+		return &StepError{Kind: InvalidFlowError, Err: err}
+	}
+	if r.Store == nil || r.NewClient == nil {
+		return &StepError{Kind: InvalidFlowError, Err: fmt.Errorf("request store and client factory are required")}
+	}
+	for _, step := range definition.Steps {
+		if _, err := r.Store.GetRequestContext(step.Request); err != nil {
+			return &StepError{Kind: RequestError, StepID: step.ID, Err: err}
+		}
+		if step.BeforeSend != "" && r.BeforeSend[step.BeforeSend] == nil {
+			return &StepError{Kind: HookError, StepID: step.ID, Err: fmt.Errorf("hook %q not registered", step.BeforeSend)}
+		}
+		if step.AfterResponse != "" && r.AfterResponse[step.AfterResponse] == nil {
+			return &StepError{Kind: HookError, StepID: step.ID, Err: fmt.Errorf("response hook %q not registered", step.AfterResponse)}
+		}
+	}
+	return nil
+}
+
+func CloneVariables(source Variables) Variables {
+	result := make(Variables, len(source))
+	for name, value := range source {
+		result[name] = Value{RawJSON: append([]byte(nil), value.RawJSON...), Text: value.Text}
+	}
+	return result
 }
 
 func (r Runner) Run(ctx context.Context, definition Flow, mutation *StepMutation) (RunResult, error) {
-	result := RunResult{FlowName: definition.Name, Variables: make(Variables)}
-	if err := Validate(definition); err != nil {
-		return result, &StepError{Kind: InvalidFlowError, Err: err}
+	result := RunResult{FlowName: definition.Name, Variables: CloneVariables(r.InitialVariables)}
+	if err := r.Preflight(definition); err != nil {
+		var stepErr *StepError
+		if errors.As(err, &stepErr) {
+			result.FailedStepID = stepErr.StepID
+		}
+		return result, err
 	}
-	if r.Store == nil || r.NewClient == nil {
-		return result, &StepError{Kind: InvalidFlowError, Err: fmt.Errorf("request store and client factory are required")}
+	for name, value := range result.Variables {
+		result.Variables[name], _ = ParseValue(value.RawJSON)
 	}
 	if err := validateMutation(definition, mutation); err != nil {
 		return result, &StepError{Kind: InvalidFlowError, Err: err}
@@ -86,6 +122,11 @@ func (r Runner) Run(ctx context.Context, definition Flow, mutation *StepMutation
 		}
 		request.SetContext(ctx)
 		request.SetContextData(rawreq.RequestBodyType, contexts[step.Request].ParsedRequest.BodyType)
+		if r.Initialize != nil {
+			if err := r.Initialize(request, result.Variables); err != nil {
+				return failRun(result, step.ID, HookError, err)
+			}
+		}
 		for _, binding := range step.Bind {
 			value, exists := result.Variables[binding.Variable]
 			if !exists {
@@ -95,10 +136,13 @@ func (r Runner) Run(ctx context.Context, definition Flow, mutation *StepMutation
 				return failRun(result, step.ID, BindingError, err)
 			}
 		}
+		var mutationRequest *RequestSnapshot
 		if mutation != nil && mutation.StepID == step.ID {
 			if err := mutation.Apply(request, result.Variables); err != nil {
 				return failRun(result, step.ID, MutationError, err)
 			}
+			changed := snapshot(request)
+			mutationRequest = &changed
 		}
 		if r.Prepare != nil {
 			if err := r.Prepare(request, result.Variables); err != nil {
@@ -111,18 +155,22 @@ func (r Runner) Run(ctx context.Context, definition Flow, mutation *StepMutation
 			}
 		}
 		trace := StepResult{
-			StepID:      step.ID,
-			Actor:       actor,
-			RequestName: step.Request,
-			Request:     snapshot(request),
-			Extracted:   make(Variables),
+			StepID:          step.ID,
+			Actor:           actor,
+			RequestName:     step.Request,
+			Request:         snapshot(request),
+			Extracted:       make(Variables),
+			MutationRequest: mutationRequest,
 		}
-		response, err := client.SendRequest(request)
+		bodyTrace := &bodyRecorder{}
+		response, err := client.SendRequestObserved(request, bodyTrace.observe)
+		trace.SentRequest = bodyTrace.snapshot()
 		if err != nil {
 			result.Steps = append(result.Steps, trace)
 			return failRun(result, step.ID, TransportError, err)
 		}
 		trace.StatusCode = response.StatusCode
+		trace.ResponseHeaders = response.Header.Clone()
 		trace.ResponseBody = append([]byte(nil), response.Bytes()...)
 		result.Steps = append(result.Steps, trace)
 		if step.ExpectStatus != nil && trace.StatusCode != *step.ExpectStatus {
@@ -168,7 +216,7 @@ func actorName(step Step) string {
 
 func (r Runner) Compare(ctx context.Context, definition Flow, mutation StepMutation) (ComparisonResult, error) {
 	comparison := ComparisonResult{MutationStepID: mutation.StepID}
-	if err := Validate(definition); err != nil {
+	if err := ValidateWithVariables(definition, r.InitialVariables); err != nil {
 		return comparison, &StepError{Kind: InvalidFlowError, Err: err}
 	}
 	if err := validateMutation(definition, &mutation); err != nil {
@@ -276,10 +324,12 @@ func snapshot(request attacker.Request) RequestSnapshot {
 		query[key] = append(query[key], values...)
 	}
 	return RequestSnapshot{
-		Method:  request.Method,
-		RawURL:  request.RawURL,
-		Query:   query,
-		Headers: request.Headers.Clone(),
-		Body:    append([]byte(nil), request.Body...),
+		Method:     request.Method,
+		RawURL:     request.RawURL,
+		Host:       request.Headers.Get("Host"),
+		Query:      query,
+		Headers:    request.Headers.Clone(),
+		Body:       append([]byte(nil), request.Body...),
+		BodySource: "prepared-cache",
 	}
 }

@@ -31,19 +31,21 @@ type project struct {
 	Store    *attacker.RequestStore
 }
 
-func validateTargets(project project) error {
-	for _, step := range project.Flow.Steps {
-		stored, err := project.Store.GetRequestContext(step.Request)
-		if err != nil {
-			return fmt.Errorf("step %q request %q: %w", step.ID, step.Request, err)
-		}
-		raw := stored.ParsedRequest.Path
-		parsed, err := url.Parse(raw)
-		if err != nil || parsed.IsAbs() || parsed.Host != "" || parsed.User != nil || parsed.Fragment != "" || !strings.HasPrefix(raw, "/") || strings.HasPrefix(raw, "//") {
-			return fmt.Errorf("step %q: captured request target must be a relative path without a fragment", step.ID)
-		}
-		if !httpguts.ValidHeaderFieldName(stored.ParsedRequest.Method) {
-			return fmt.Errorf("step %q: invalid request method", step.ID)
+func validateTargets(project project, additional ...flow.Flow) error {
+	for _, definition := range append([]flow.Flow{project.Flow}, additional...) {
+		for _, step := range definition.Steps {
+			stored, err := project.Store.GetRequestContext(step.Request)
+			if err != nil {
+				return fmt.Errorf("step %q request %q: %w", step.ID, step.Request, err)
+			}
+			raw := stored.ParsedRequest.Path
+			parsed, err := url.Parse(raw)
+			if err != nil || parsed.IsAbs() || parsed.Host != "" || parsed.User != nil || parsed.Fragment != "" || !strings.HasPrefix(raw, "/") || strings.HasPrefix(raw, "//") {
+				return fmt.Errorf("step %q: captured request target must be a relative path without a fragment", step.ID)
+			}
+			if !httpguts.ValidHeaderFieldName(stored.ParsedRequest.Method) {
+				return fmt.Errorf("step %q: invalid request method", step.ID)
+			}
 		}
 	}
 	return nil

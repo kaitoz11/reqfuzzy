@@ -6,13 +6,10 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"net/url"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
-	"github.com/kaitoz11/reqfuzzy/pkg/attacker"
 	"github.com/kaitoz11/reqfuzzy/pkg/attacker/flow"
 	"github.com/kaitoz11/reqfuzzy/pkg/attacker/script"
 )
@@ -28,7 +25,7 @@ func RunContext(ctx context.Context, args []string, stdout, stderr io.Writer) in
 		}
 	}
 	if len(args) == 0 || args[0] == "--help" || args[0] == "-h" {
-		fmt.Fprintln(stdout, "reqfuzzy import --out DIR [--origin URL] HAR\nreqfuzzy flow show --project DIR [--json]\nreqfuzzy flow run --project DIR --base-url URL [--json]\nreqfuzzy flow compare --project DIR --base-url URL --step ID --location json|header|query --path KEY --value VALUE [--json]")
+		fmt.Fprintln(stdout, "reqfuzzy import --out DIR [--origin URL] HAR\nreqfuzzy flow show --project DIR [--json]\nreqfuzzy flow run --project DIR --base-url URL [--json]\nreqfuzzy flow compare --project DIR --base-url URL --step ID --location json|header|query --path KEY --value VALUE [--json]\nreqfuzzy flow test --project DIR --base-url URL --test tests.yaml --out RUN_DIR [--json]\nreqfuzzy flow replay --project DIR --base-url URL --run RUN_DIR --case ID --out NEW_RUN_DIR [--json]")
 		return 0
 	}
 	command := args[0]
@@ -40,6 +37,9 @@ func RunContext(ctx context.Context, args []string, stdout, stderr io.Writer) in
 		args = args[2:]
 	} else {
 		args = args[1:]
+	}
+	if command == "flow test" || command == "flow replay" {
+		return runJourney(ctx, command, args, stdout, stderr, jsonMode)
 	}
 	flags := flag.NewFlagSet(command, flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
@@ -85,9 +85,9 @@ func RunContext(ctx context.Context, args []string, stdout, stderr io.Writer) in
 	if command == "flow show" {
 		return emit(stdout, stderr, jsonMode, command, view(project.Flow), 0, nil)
 	}
-	target, err := url.Parse(*base)
-	if err != nil || target.Host == "" || (target.Scheme != "http" && target.Scheme != "https") || target.User != nil || target.RawQuery != "" || target.Fragment != "" {
-		return emit(stdout, stderr, jsonMode, command, nil, 1, fmt.Errorf("run and compare require an HTTP(S) --base-url without credentials, query, or fragment"))
+	target, err := parseTarget(*base)
+	if err != nil {
+		return emit(stdout, stderr, jsonMode, command, nil, 1, err)
 	}
 	if *timeout <= 0 || *scriptTimeout <= 0 {
 		return emit(stdout, stderr, jsonMode, command, nil, 1, fmt.Errorf("timeouts must be positive"))
@@ -129,7 +129,7 @@ func RunContext(ctx context.Context, args []string, stdout, stderr io.Writer) in
 		if *location != "json" {
 			raw, _ = json.Marshal(*value)
 		}
-		parsed, err := flow.ParseValue(raw)
+		parsed, err := flow.ParseMutationValue(raw)
 		if err != nil {
 			return emit(stdout, stderr, jsonMode, command, nil, 1, err)
 		}
@@ -142,19 +142,7 @@ func RunContext(ctx context.Context, args []string, stdout, stderr io.Writer) in
 		}
 		mutation = flow.StepMutation{StepID: *step, Apply: apply}
 	}
-	runner := flow.Runner{Store: project.Store, NewClient: func(string) (*attacker.HClient, error) {
-		client := attacker.NewHClient()
-		client.UseBaseURL(strings.TrimRight(target.String(), "/"))
-		return client, nil
-	}, BeforeSend: before, AfterResponse: after, Prepare: func(request attacker.Request, _ flow.Variables) error {
-		for key := range request.Headers {
-			if strings.EqualFold(key, "Host") {
-				delete(request.Headers, key)
-			}
-		}
-		request.SetHeaderNonCanonical("Host", target.Host)
-		return nil
-	}}
+	runner := newRunner(project, target, before, after, 0)
 	if command == "flow run" {
 		result, err := runner.Run(execution, project.Flow, nil)
 		code := 0
@@ -171,53 +159,60 @@ func RunContext(ctx context.Context, args []string, stdout, stderr io.Writer) in
 	return emit(stdout, stderr, jsonMode, command, comparisonSummary{MutationStepID: result.MutationStepID, Baseline: summary(result.Baseline), Mutated: summary(result.Mutated)}, code, err)
 }
 
-func loadScripts(ctx context.Context, project project, directory string, timeout time.Duration) (map[string]flow.BeforeSend, map[string]flow.AfterResponse, error) {
-	prefix := ""
-	if directory == "" {
-		directory = project.Root
-		prefix = "hooks"
-	}
+func loadScripts(ctx context.Context, project project, directory string, timeout time.Duration, additional ...flow.Flow) (map[string]flow.BeforeSend, map[string]flow.AfterResponse, error) {
 	before := map[string]flow.BeforeSend{}
 	after := map[string]flow.AfterResponse{}
 	programs := map[string]*script.Program{}
-	for _, step := range project.Flow.Steps {
-		if err := ctx.Err(); err != nil {
-			return nil, nil, err
-		}
-		for _, entry := range []struct{ name, callback string }{{step.BeforeSend, "beforeSend"}, {step.AfterResponse, "afterResponse"}} {
-			if entry.name == "" {
-				continue
-			}
-			if !safeHookName(entry.name) {
-				return nil, nil, fmt.Errorf("invalid hook name %q", entry.name)
-			}
-			program := programs[entry.name]
-			if program == nil {
-				path, err := inside(directory, filepath.Join(prefix, entry.name+".js"))
-				if err != nil {
-					return nil, nil, fmt.Errorf("hook %q: %w", entry.name, err)
-				}
-				source, err := os.ReadFile(path)
-				if err != nil {
-					return nil, nil, err
-				}
-				program, err = script.Compile(path, string(source), timeout)
-				if err != nil {
-					return nil, nil, err
-				}
-				programs[entry.name] = program
-			}
-			if err := program.CheckContext(ctx, entry.callback); err != nil {
+	for _, definition := range append([]flow.Flow{project.Flow}, additional...) {
+		for _, step := range definition.Steps {
+			if err := ctx.Err(); err != nil {
 				return nil, nil, err
 			}
-			if entry.callback == "beforeSend" {
-				before[entry.name] = program.BeforeSend
-			} else {
-				after[entry.name] = program.AfterResponse
+			for _, entry := range []struct{ name, callback string }{{step.BeforeSend, "beforeSend"}, {step.AfterResponse, "afterResponse"}} {
+				if entry.name == "" {
+					continue
+				}
+				if !safeHookName(entry.name) {
+					return nil, nil, fmt.Errorf("invalid hook name %q", entry.name)
+				}
+				program := programs[entry.name]
+				if program == nil {
+					path, err := scriptPath(project, directory, entry.name)
+					if err != nil {
+						return nil, nil, fmt.Errorf("hook %q: %w", entry.name, err)
+					}
+					source, err := os.ReadFile(path)
+					if err != nil {
+						return nil, nil, err
+					}
+					program, err = script.Compile(path, string(source), timeout)
+					if err != nil {
+						return nil, nil, err
+					}
+					programs[entry.name] = program
+				}
+				if err := program.CheckContext(ctx, entry.callback); err != nil {
+					return nil, nil, err
+				}
+				if entry.callback == "beforeSend" {
+					before[entry.name] = program.BeforeSend
+				} else {
+					after[entry.name] = program.AfterResponse
+				}
 			}
 		}
 	}
 	return before, after, nil
+}
+
+func scriptPath(project project, directory, name string) (string, error) {
+	if !safeHookName(name) {
+		return "", fmt.Errorf("invalid hook name")
+	}
+	if directory == "" {
+		return inside(project.Root, filepath.Join("hooks", name+".js"))
+	}
+	return inside(directory, name+".js")
 }
 func safeHookName(name string) bool {
 	if name == "" {

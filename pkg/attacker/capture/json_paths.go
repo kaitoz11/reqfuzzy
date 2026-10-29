@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/kaitoz11/reqfuzzy/pkg/attacker/jsonutil"
 	"github.com/tidwall/gjson"
 )
 
@@ -16,12 +17,7 @@ type jsonLeaf struct {
 }
 
 func jsonLeaves(data []byte) []jsonLeaf {
-	if !json.Valid(data) {
-		return nil
-	}
-	duplicateScanner := json.NewDecoder(bytes.NewReader(data))
-	duplicateScanner.UseNumber()
-	if hasDuplicateObjectKey(duplicateScanner) {
+	if jsonutil.ValidateUnique(data) != nil {
 		return nil
 	}
 	decoder := json.NewDecoder(bytes.NewReader(data))
@@ -33,50 +29,6 @@ func jsonLeaves(data []byte) []jsonLeaf {
 	var leaves []jsonLeaf
 	walkJSON(value, "", &leaves)
 	return leaves
-}
-
-func hasDuplicateObjectKey(decoder *json.Decoder) bool {
-	token, err := decoder.Token()
-	if err != nil {
-		return true
-	}
-	delimiter, ok := token.(json.Delim)
-	if !ok {
-		return false
-	}
-	switch delimiter {
-	case '{':
-		seen := make(map[string]struct{})
-		for decoder.More() {
-			keyToken, err := decoder.Token()
-			if err != nil {
-				return true
-			}
-			key, ok := keyToken.(string)
-			if !ok {
-				return true
-			}
-			if _, duplicate := seen[key]; duplicate {
-				return true
-			}
-			seen[key] = struct{}{}
-			if hasDuplicateObjectKey(decoder) {
-				return true
-			}
-		}
-		_, err := decoder.Token()
-		return err != nil
-	case '[':
-		for decoder.More() {
-			if hasDuplicateObjectKey(decoder) {
-				return true
-			}
-		}
-		_, err := decoder.Token()
-		return err != nil
-	default:
-		return true
-	}
 }
 
 func walkJSON(value any, path string, leaves *[]jsonLeaf) {

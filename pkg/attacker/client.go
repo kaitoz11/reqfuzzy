@@ -16,18 +16,18 @@ type HClient struct {
 
 func NewHClient() *HClient {
 	return &HClient{
-		httpClient: req.C().
+		httpClient: observeClient(req.C().
 			SetRedirectPolicy(req.NoRedirectPolicy()).
-			SetUserAgent(DefaultUserAgent),
+			SetUserAgent(DefaultUserAgent)),
 		contextData: make(map[string]string),
 	}
 }
 
 func NewHClientWith(client *req.Client) *HClient {
 	return &HClient{
-		httpClient: client.
+		httpClient: observeClient(client.
 			SetRedirectPolicy(req.NoRedirectPolicy()).
-			SetUserAgent(DefaultUserAgent),
+			SetUserAgent(DefaultUserAgent)),
 		contextData: make(map[string]string),
 	}
 }
@@ -60,6 +60,9 @@ func (c *HClient) WithUpdatedClient(updateClientCallback func(client *req.Client
 func (c *HClient) UseBaseURL(baseURL string) {
 	c.httpClient.SetBaseURL(baseURL)
 }
+
+// CloseIdleConnections releases transport resources owned by a completed journey.
+func (c *HClient) CloseIdleConnections() { c.httpClient.GetClient().CloseIdleConnections() }
 
 func (c *HClient) SendRequest(r Request) (Response, error) {
 	baseURL := c.httpClient.BaseURL

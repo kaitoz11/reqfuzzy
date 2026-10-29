@@ -11,6 +11,10 @@ import (
 )
 
 func LoadYAML(data []byte) (Flow, error) {
+	return LoadYAMLWithVariables(data, nil)
+}
+
+func LoadYAMLWithVariables(data []byte, initial Variables) (Flow, error) {
 	decoder := yaml.NewDecoder(bytes.NewReader(data))
 	decoder.KnownFields(true)
 
@@ -25,7 +29,7 @@ func LoadYAML(data []byte) (Flow, error) {
 		}
 		return Flow{}, errors.New("flow must contain exactly one YAML document")
 	}
-	if err := Validate(result); err != nil {
+	if err := ValidateWithVariables(result, initial); err != nil {
 		return Flow{}, err
 	}
 	for i := range result.Steps {
@@ -37,6 +41,10 @@ func LoadYAML(data []byte) (Flow, error) {
 }
 
 func Validate(candidate Flow) error {
+	return ValidateWithVariables(candidate, nil)
+}
+
+func ValidateWithVariables(candidate Flow, initial Variables) error {
 	if strings.TrimSpace(candidate.Name) == "" {
 		return errors.New("flow name is required")
 	}
@@ -46,6 +54,15 @@ func Validate(candidate Flow) error {
 
 	stepIDs := make(map[string]struct{}, len(candidate.Steps))
 	variables := make(map[string]struct{})
+	for name, value := range initial {
+		if strings.TrimSpace(name) == "" {
+			return errors.New("initial variable name is required")
+		}
+		if _, err := ParseValue(value.RawJSON); err != nil {
+			return fmt.Errorf("initial variable %q is not a scalar", name)
+		}
+		variables[name] = struct{}{}
+	}
 	for _, step := range candidate.Steps {
 		if strings.TrimSpace(step.ID) == "" {
 			return errors.New("flow step id is required")

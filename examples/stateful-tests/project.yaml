@@ -1,0 +1,7 @@
+version: 1
+origin: http://127.0.0.1:8098
+requests:
+  session: requests/session.txt
+  nonce: requests/nonce.txt
+  transfer: requests/transfer.txt
+  balance: requests/balance.txt

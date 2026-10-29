@@ -45,4 +45,6 @@ Human output lists step statuses and response SHA-256 hashes. `--json` emits exa
 | 2 | Execution failed, timed out, or was canceled; completed step summaries are retained. |
 | 3 | A valid `flow test` or `flow replay` case violated a configured invariant. |
 
+`flow map --project DIR --out FILE [--test tests.yaml]` creates a new private offline visual editor. It maps variable dependencies, supports step/binding/extraction edits, and exports the active flow. With a campaign it includes verification and validates cross-phase references. It does not execute hooks or send requests. See [visual mapping and authoring](flow-map.md).
+
 See [script hooks](script-hooks.md) for dynamic request transformations and response logic, and the runnable project in `examples/scripted-flow`.

@@ -7,7 +7,7 @@ permissions:
   contents: read
 jobs:
   verify:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         go: ["1.24.x", stable]
@@ -22,3 +22,15 @@ jobs:
           GOTOOLCHAIN: local
       - run: go vet ./...
       - run: go build ./cmd/reqfuzzy
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        if: matrix.go == 'stable'
+        with:
+          node-version: "24"
+      - run: npm --prefix .reqfuzzy/browser install --no-audit --no-fund playwright@1.64.1
+        if: matrix.go == 'stable'
+      - run: node .reqfuzzy/browser/node_modules/playwright/cli.js install --with-deps chromium
+        if: matrix.go == 'stable'
+      - run: node scripts/flow-map-browser.mjs
+        if: matrix.go == 'stable'
+        env:
+          REQFUZZY_BIN: ${{ github.workspace }}/reqfuzzy

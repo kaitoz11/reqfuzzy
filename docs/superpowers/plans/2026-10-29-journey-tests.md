@@ -8,4 +8,6 @@ Use the approved active-goal scope and `executing-plans` inline. Follow the desi
 - [x] Add protected evidence artifacts, redaction and logical fingerprints; preserve partial trials and refuse overwrites.
 - [x] Connect `flow test` and `flow replay` to the CLI with input preflight, limits, output/exit contracts, and end-to-end reconstruction/drift tests.
 - [x] Extend the runnable reference example, document the operator workflow, update the product-goal audit, and run race/vet/Go-1.24/build checks.
-- [ ] Review substantive findings, verify the final source and artifact behavior, and publish a draft change stacked on PR #12. Keep the overall goal active while required capabilities remain unproved.
+- [x] Review substantive findings, verify the final source and artifact behavior, and publish a draft change stacked on PR #12. Keep the overall goal active while required capabilities remain unproved.
+
+Delivery: draft PR #13 is stacked on PR #12. Review fixes, local race/vet/Go-1.24/build checks, actual CLI reference outcomes, artifact privacy, binary provenance, and reconstruction are verified. The full product goal remains active.

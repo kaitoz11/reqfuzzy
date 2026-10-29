@@ -43,6 +43,22 @@ func replacePathSegment(rawURL, address, value string) (string, error) {
 		encoded = strings.ReplaceAll(value, ".", "%2E")
 	}
 	parts[index] = encoded
+	return renderPath(parsed, parts)
+}
+
+func removePathSegment(rawURL, address string) (string, error) {
+	parsed, parts, index, err := pathAddress(rawURL, address)
+	if err != nil {
+		return "", err
+	}
+	parts = append(parts[:index], parts[index+1:]...)
+	if "/"+strings.Join(parts, "/") == parsed.EscapedPath() {
+		return "", fmt.Errorf("path removal would not change the path")
+	}
+	return renderPath(parsed, parts)
+}
+
+func renderPath(parsed *url.URL, parts []string) (string, error) {
 	updated := "/" + strings.Join(parts, "/")
 	if strings.HasPrefix(updated, "//") {
 		return "", fmt.Errorf("path binding would create a network-path reference")

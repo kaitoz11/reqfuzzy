@@ -76,7 +76,9 @@ bind:
 
 Indices are canonical nonnegative integers encoded as strings. Counting starts after the initial slash; internal and trailing empty slots still count. Bounds are checked against the captured path during preflight, before any client is created or prerequisite is sent. Paths are relative to the configured target origin.
 
-The value's exact text, including an optional `prefix`, is escaped as one segment. An ID containing `/`, `?`, or `#` cannot insert another segment, query, or fragment. Dot-only values are percent-escaped; other segments retain their existing escapes and the raw query is preserved. A binding that would create a leading `//` is rejected. Bindings run before mutations and final hooks, and appear as edges in `flow show`. Path binding does not add path-targeted mutation actions; current mutation targets remain header, query, and JSON.
+The value's exact text, including an optional `prefix`, is escaped as one segment. An ID containing `/`, `?`, or `#` cannot insert another segment, query, or fragment. Dot-only values are percent-escaped; other segments retain their existing escapes and the raw query is preserved. A binding that would create a leading `//` is rejected. Bindings run before mutations and final hooks, and appear as edges in `flow show`.
+
+Path segments and UTF-8 URL-encoded form fields also support set/remove/append/prepend mutations. Form bindings use `location: form` with a decoded field name. See [request locations](request-locations.md) for encoding, repeated-key behavior, and mutation proof.
 
 ## Run a comparison
 

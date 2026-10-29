@@ -31,7 +31,7 @@ The negative case now increases the account balance from 100 to 110. The configu
 
 ## Definition
 
-A version-1 `tests.yaml` file belongs inside the project. `target` names an existing step, location (`json`, `header`, `query`), and path. `cases` supplies unique safe IDs and an action:
+A version-1 `tests.yaml` file belongs inside the project. `target` names an existing step, location (`json`, `header`, `query`, `path`, `form`), and path. See [location semantics](request-locations.md) for segment indices, URL-encoded forms, and sent-request proof. `cases` supplies unique safe IDs and an action:
 
 | Action | Behavior |
 |---|---|

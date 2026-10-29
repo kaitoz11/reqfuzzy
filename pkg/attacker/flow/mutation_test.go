@@ -17,6 +17,14 @@ func TestMorphingActionsChangeRealRequestBytes(t *testing.T) {
 		{"JSON prepend", "prepend", "json", "comment", `"head-"`, "POST / HTTP/1.1\r\nContent-Type: application/json\r\n\r\n{\"comment\":\"base\"}", `{"comment":"head-base"}`, "/"},
 		{"query remove", "remove", "query", "id", "", "GET /?a=%2F&id=one&z=hello%20world HTTP/1.1\r\n\r\n", "", "/?a=%2F&z=hello%20world"},
 		{"query append", "append", "query", "id", `" tail"`, "GET /?a=%2F&id=base HTTP/1.1\r\n\r\n", "", "/?a=%2F&id=base+tail"},
+		{"path set", "set", "path", "1", `"new/id?x#"`, "GET /items/old/end?keep=%2f HTTP/1.1\r\n\r\n", "", "/items/new%2Fid%3Fx%23/end?keep=%2f"},
+		{"path remove", "remove", "path", "1", "", "GET /items/old/end?keep=%2f HTTP/1.1\r\n\r\n", "", "/items/end?keep=%2f"},
+		{"path append", "append", "path", "1", `"/tail"`, "GET /items/base?keep=%2f HTTP/1.1\r\n\r\n", "", "/items/base%2Ftail?keep=%2f"},
+		{"path prepend", "prepend", "path", "1", `"head/"`, "GET /items/base HTTP/1.1\r\n\r\n", "", "/items/head%2Fbase"},
+		{"form set repeated", "set", "form", "id", `"new/id"`, "POST / HTTP/1.1\r\nContent-Type: application/x-www-form-urlencoded\r\n\r\na=%2f&%69d=one&id=two&z=hello%20world", "a=%2f&%69d=new%2Fid&z=hello%20world", "/"},
+		{"form remove repeated", "remove", "form", "id", "", "POST / HTTP/1.1\r\ncontent-type: application/x-www-form-urlencoded; charset=UTF-8\r\n\r\na=%2f&id=one&id=two&z=hello%20world", "a=%2f&z=hello%20world", "/"},
+		{"form append", "append", "form", "id", `" tail"`, "POST / HTTP/1.1\r\nContent-Type: application/x-www-form-urlencoded\r\n\r\na=%2f&id=base", "a=%2f&id=base+tail", "/"},
+		{"form prepend", "prepend", "form", "id", `"head&"`, "POST / HTTP/1.1\r\nContent-Type: application/x-www-form-urlencoded\r\n\r\nid=base", "id=head%26base", "/"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -43,6 +51,9 @@ func TestMorphingRejectsAmbiguousOrWrongTypedAppend(t *testing.T) {
 		{"query", "id", "GET /?id=one&id=two HTTP/1.1\r\n\r\n"},
 		{"header", "X-Token", "GET / HTTP/1.1\r\nX-Token: one\r\nx-token: two\r\n\r\n"},
 		{"json", "id", "POST / HTTP/1.1\r\nContent-Type: application/json\r\n\r\n{\"id\":1}"},
+		{"form", "id", "POST / HTTP/1.1\r\nContent-Type: application/x-www-form-urlencoded\r\n\r\nid=one&id=two"},
+		{"form", "id", "POST / HTTP/1.1\r\nContent-Type: text/plain\r\n\r\nid=one"},
+		{"form", "id", "POST / HTTP/1.1\r\nContent-Type: application/x-www-form-urlencoded\r\n\r\nid=one&bad=%ZZ"},
 	}
 	for _, tc := range cases {
 		request, err := attacker.NewHClient().ParseRawRequest([]byte(tc.raw))

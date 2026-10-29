@@ -27,6 +27,7 @@ bin/reqfuzzy flow compare --project examples/scripted-flow --base-url http://127
 The example obtains a fresh token, signs the final request body, and reads back the changed amount. Comparisons report response hashes and execution outcomes; they do not automatically classify a difference as a vulnerability.
 
 - [CLI commands and projects](docs/cli.md)
+- [Visual flow mapping and authoring](docs/flow-map.md)
 - [JavaScript request and response hooks](docs/script-hooks.md)
 - [Stateful mutation tests and reproducible evidence](docs/journey-tests.md)
 - [HAR import and flow inference](docs/har-flow-inference.md)
@@ -37,4 +38,6 @@ Reusable test cases can set, remove, append, and prepend values, run downstream 
 
 Current inference covers JSON response scalars and named `Set-Cookie` values passed into path segments, headers, query values, JSON bodies, URL-encoded form fields, and request cookies. Short or ambiguous values can be bound explicitly. All six locations support set/remove/append/prepend mutations. The [Juice Shop checkout example](examples/juice-shop/README.md) demonstrates fresh accounts, dynamic path IDs, quantity mutation, persisted-order checks, and reconstruction against a pinned local application.
 
-Multipart inference, broader payload/template support, flexible flow control, and a visual dependency view remain separate increments.
+Create an offline visual editor with `bin/reqfuzzy flow map --project examples/juice-shop --test tests.yaml --out .reqfuzzy/checkout-map.html`. Inspect inferred/authored dependencies, edit the journey and verification flows, and export definitions without sending requests.
+
+Multipart inference, broader payload/template support, and flexible flow control remain separate increments.

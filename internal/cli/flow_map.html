@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'none'; base-uri 'none'; form-action 'none'">
+<title>reqfuzzy · Flow map</title>
+<style>
+:root{--paper:#f4f6fa;--panel:#fff;--ink:#17253c;--muted:#61718a;--line:#dce3ed;--blue:#285ec7;--tint:#edf3ff;--warn:#b44c22;--danger:#b42e42;--code:ui-monospace,SFMono-Regular,Consolas,monospace;color-scheme:light}
+*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:14px/1.5 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}button,input,select{font:inherit}button{cursor:pointer}button:disabled{cursor:default;opacity:.45}button,input,select{border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--ink);padding:8px 10px}button:hover:enabled{border-color:var(--blue);background:var(--tint)}:focus-visible{outline:3px solid #829fe5;outline-offset:2px}.primary{background:var(--blue);border-color:var(--blue);color:white}.primary:hover:enabled{background:#1b4fad;color:white}.quiet{background:transparent}.danger{color:var(--danger)}.muted{color:var(--muted)}.mono{font-family:var(--code);font-size:12px}.eyebrow{font:700 11px var(--code);letter-spacing:.16em;color:var(--muted);margin:0 0 5px;text-transform:uppercase}
+header{padding:22px 28px 18px;background:var(--panel);border-bottom:1px solid var(--line);display:flex;gap:20px;justify-content:space-between;align-items:center}h1{font-size:24px;line-height:1.3;margin:0;overflow-wrap:anywhere}header p{margin:5px 0 0}.actions{display:flex;gap:7px;align-items:center;flex-wrap:wrap;flex-shrink:0}.status{font-size:12px;color:var(--muted)}main{padding:20px 24px;max-width:2000px;margin:auto}.toolbar{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap}.filters{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.filters input{min-width:230px}.phase-tabs{display:flex;gap:4px}.phase-tabs button[aria-pressed="true"]{background:var(--tint);border-color:#8aa7df;color:var(--blue)}.workbench{display:grid;grid-template-columns:minmax(0,1fr) 374px;gap:16px;align-items:start}.map-shell,.inspector,.problems,.campaign{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}.map-top{padding:13px 16px;border-bottom:1px solid var(--line);display:flex;gap:12px;align-items:center;justify-content:space-between}.map-top p{margin:0}.map-scroll{height:70vh;min-height:460px;overflow:auto;background:linear-gradient(90deg,transparent 23px,#e7ecf333 24px),linear-gradient(transparent 23px,#e7ecf333 24px);background-size:24px 24px}.map-scroll svg{display:block;max-width:none}.legend{display:flex;gap:12px;flex-wrap:wrap;padding:12px 16px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}.legend span{display:flex;align-items:center;gap:5px}.swatch{display:inline-block;width:16px;height:3px;background:currentColor}.inspector{max-height:82vh;overflow:auto}.inspector-head{padding:16px 18px;border-bottom:1px solid var(--line)}.inspector-head h2{font-size:16px;margin:0 0 4px}.inspector-body{padding:15px 18px}.field{display:block;margin-bottom:12px}.field>span{display:block;color:var(--muted);font-size:12px;font-weight:600;margin-bottom:4px}.field input,.field select{width:100%;min-width:0}.field-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.section-title{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:20px 0 10px}.section-title h3{font-size:13px;margin:0}.small{font-size:12px;padding:5px 8px}.entry{padding:10px;border:1px solid var(--line);border-radius:7px;margin-bottom:9px;background:#fbfcfe}.entry .field{margin-bottom:8px}.entry .field-grid{gap:7px}.entry-foot{display:flex;justify-content:space-between;gap:8px;align-items:center}.entry-foot span{font-size:11px;color:var(--muted)}.empty{padding:18px;color:var(--muted)}.empty p{margin:0}.help{font-size:12px;color:var(--muted);margin:12px 0 0}.problems{margin-top:14px;padding:12px 16px;border-color:#e4b6bd}.problems h2{font-size:14px;margin:0 0 7px;color:var(--danger)}.problems ul{margin:0;padding-left:18px}.problems button{padding:1px 0;border:0;background:none;text-align:left;font-size:12px;color:var(--danger)}.campaign{padding:12px 16px;margin-bottom:14px;display:flex;gap:12px;align-items:center;justify-content:space-between}.badge{font-size:11px;padding:3px 7px;border-radius:4px;background:#fff1e8;color:var(--warn);white-space:nowrap}.campaign p{margin:0}.node{cursor:pointer}.node rect{fill:var(--panel);stroke:#aab8cb;stroke-width:1.2}.node.selected rect.frame{fill:var(--tint);stroke:var(--blue);stroke-width:2}.node text{fill:var(--ink);pointer-events:none}.node .sub{fill:var(--muted);font-family:var(--code);font-size:11px}.node .title{font-size:14px;font-weight:650}.node .meta{fill:var(--muted);font-size:11px}.edge{cursor:pointer}.edge path{fill:none;stroke-width:1.5}.edge:hover path,.edge:focus-visible path{stroke-width:3}.edge text{font:10px var(--code)}.edge-label{fill:var(--panel)}.lane{font:11px var(--code);fill:var(--muted)}footer{padding:18px 2px;color:var(--muted);font-size:12px}.zoom{display:flex;align-items:center;gap:6px}.zoom button{padding:3px 8px}.error-node rect.frame{stroke:var(--danger)}
+@media(max-width:1000px){header{align-items:flex-start;flex-direction:column;padding:18px}main{padding:14px}.workbench{grid-template-columns:minmax(0,1fr)}.inspector{max-height:none}.map-scroll{height:58vh;min-height:360px}.actions{flex-shrink:1}.campaign{align-items:flex-start;flex-direction:column}.filters input{min-width:150px}}
+@media print{.actions,.toolbar,.inspector,.problems{display:none}main{padding:0}.workbench{display:block}.map-scroll{height:auto;overflow:visible}.map-shell{border:0}header{padding:0 0 12px}.map-scroll svg{max-width:100%;height:auto!important;width:100%!important}}
+</style>
+<style>[hidden]{display:none!important}.actions button{max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.inspector-head h2{overflow-wrap:anywhere}.campaign strong{overflow-wrap:anywhere}</style>
+</head>
+<body>
+<header>
+  <div><p class="eyebrow">reqfuzzy / Flow map</p><h1 id="project-title">API journey</h1><p class="status" id="summary">Loading flow…</p></div>
+  <div class="actions"><button id="undo" disabled>Undo</button><button id="redo" disabled>Redo</button><button id="reset">Reset</button><button id="download" class="primary">Export flow.yaml</button></div>
+</header>
+<main>
+  <div id="campaign" class="campaign" hidden></div>
+  <div class="toolbar">
+    <div id="phases" class="phase-tabs" aria-label="Flow to edit"></div>
+    <div class="filters"><input id="search" type="search" placeholder="Find step, actor, or variable" aria-label="Find step, actor, or variable"><select id="location" aria-label="Filter dependency location"><option value="">All dependencies</option><option>json</option><option>header</option><option>query</option><option>path</option><option>form</option><option>cookie</option></select><button id="add-step">Add step</button></div>
+  </div>
+  <div class="workbench">
+    <section class="map-shell" aria-label="Flow dependency map">
+      <div class="map-top"><p id="map-caption" class="status">Execution order and data dependencies</p><div class="zoom"><button id="zoom-out" aria-label="Zoom out">−</button><span id="zoom-label" class="mono">100%</span><button id="zoom-in" aria-label="Zoom in">+</button><button id="fit">Fit</button></div></div>
+      <div id="canvas" class="map-scroll" tabindex="0" aria-label="Scrollable flow graph"></div>
+      <div class="legend" id="legend"></div>
+    </section>
+    <aside class="inspector" id="inspector" aria-label="Selected step editor"></aside>
+  </div>
+  <section class="problems" id="problems" hidden aria-live="polite"></section>
+  <footer>Edits stay in this browser until exported. Apply the downloaded flow file to your project before running it. This map sends no requests and executes no hooks.</footer>
+  <noscript><p>This editor needs JavaScript. Use <code>reqfuzzy flow show</code> to inspect a flow from the command line.</p></noscript>
+</main>
+<script id="project-data" type="application/json">{{.Project}}</script>
+<script id="flow-core">{{.Core}}</script>
+<script id="flow-ui">{{.UI}}</script>
+</body>
+</html>

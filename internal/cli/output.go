@@ -90,6 +90,8 @@ func emit(stdout, stderr io.Writer, jsonMode bool, command string, result any, c
 		fmt.Fprintln(stderr)
 	}
 	switch value := result.(type) {
+	case mapSummary:
+		fmt.Fprintf(stdout, "Wrote flow map %s (%d steps, %d dependencies)\n", value.File, value.Steps, value.Dependencies)
 	case testSummary:
 		fmt.Fprintf(stdout, "%s: %s\n", value.Name, value.Outcome)
 		fmt.Fprintf(stdout, "  baseline: %s\n", value.Baseline.Outcome)

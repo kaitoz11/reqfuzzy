@@ -1,0 +1,25 @@
+name: signed-transfer
+steps:
+  - id: session
+    request: session
+    expect_status: 200
+    extract:
+      - {name: token, json: access_token}
+      - {name: signing_key, json: signing_key}
+      - {name: initial_balance, json: balance}
+  - id: nonce
+    request: nonce
+    expect_status: 200
+    bind:
+      - {location: header, path: Authorization, variable: token, prefix: "Bearer "}
+    extract:
+      - {name: nonce, json: nonce}
+  - id: transfer
+    request: transfer
+    expect_status: 201
+    bind:
+      - {location: header, path: Authorization, variable: token, prefix: "Bearer "}
+      - {location: json, path: nonce, variable: nonce}
+    before_send: sign
+    extract:
+      - {name: transaction_id, json: transaction_id}

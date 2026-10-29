@@ -28,7 +28,10 @@ The example obtains a fresh token, signs the final request body, and reads back 
 
 - [CLI commands and projects](docs/cli.md)
 - [JavaScript request and response hooks](docs/script-hooks.md)
+- [Stateful mutation tests and reproducible evidence](docs/journey-tests.md)
 - [HAR import and flow inference](docs/har-flow-inference.md)
 - [Flow model and Go API](docs/flow-mutation.md)
 
-Current inference covers JSON response scalars passed into headers, query values, and JSON bodies, including Bearer tokens. Path/cookie/form inference, a visual editor, and payload campaigns remain separate increments.
+Reusable test cases can set, remove, append, and prepend values, run downstream verification, evaluate explicit invariants, and record protected evidence for reconstruction. Start with the [stateful reference example](docs/journey-tests.md) to see secure rejection, an intentional balance bug, and invalid-session handling.
+
+Current inference covers JSON response scalars passed into headers, query values, and JSON bodies, including Bearer tokens. Path/cookie/form inference, broader payload/template support, flexible flow control, and a visual dependency view remain separate increments.

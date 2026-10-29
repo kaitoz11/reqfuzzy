@@ -1,0 +1,7 @@
+name: verify-balance
+steps:
+  - id: balance
+    request: balance
+    expect_status: 200
+    bind:
+      - {location: header, path: Authorization, variable: token, prefix: "Bearer "}

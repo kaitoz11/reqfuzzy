@@ -1,0 +1,14 @@
+version: 1
+name: order-total-never-negative
+target: {step: update, location: json, path: quantity}
+observe_statuses: [200]
+verify: verify.yaml
+cases:
+  - {id: negative, action: set, value: -10}
+  - {id: zero, action: set, value: 0}
+checks:
+  - {id: one-order, phase: verify, step: history, select: json, path: "data.#", op: eq, value: 1}
+  - {id: correct-order, phase: verify, step: history, select: json, path: data.0.orderId, op: eq, variable: order_id}
+  - {id: nonnegative-total, phase: verify, step: history, select: json, path: data.0.totalPrice, op: gte, value: 0}
+redact:
+  json_paths: [passwordRepeat, email, data.email, authentication.umail, data.0.email]

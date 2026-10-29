@@ -1,0 +1,5 @@
+POST /rest/basket/0/checkout HTTP/1.1
+Host: captured.juice-shop
+Content-Type: application/json
+
+{}

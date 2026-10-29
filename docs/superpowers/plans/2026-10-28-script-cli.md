@@ -21,4 +21,4 @@ Spec: `docs/superpowers/specs/2026-10-28-script-cli-design.md`.
 
 All tests use temporary files and local HTTP servers. No external target is needed. Preserve the original checkout's uncommitted `main.go` edit. Keep Go 1.24 as the module floor.
 
-Delivery: draft PR #12 contains the CLI and script slice; PRs #10 and #11 are merged into the development branch. Local race/vet/build checks, Go 1.24.4 tests, and the actual CLI demo passed.
+Delivery: PR #12 contains the CLI and script slice and was merged into `feat/req-fuzzer` after user approval. PRs #10 and #11 are also merged. Local race/vet/build checks, Go 1.24.4 tests, and the actual CLI demo passed.

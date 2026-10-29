@@ -1,0 +1,9 @@
+version: 1
+origin: http://127.0.0.1:3000
+requests:
+  signup: requests/signup.txt
+  login: requests/login.txt
+  add: requests/add.txt
+  update: requests/update.txt
+  checkout: requests/checkout.txt
+  history: requests/history.txt

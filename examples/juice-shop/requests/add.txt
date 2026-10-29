@@ -1,0 +1,5 @@
+POST /api/BasketItems HTTP/1.1
+Host: captured.juice-shop
+Content-Type: application/json
+
+{"BasketId":0,"ProductId":1,"quantity":1}

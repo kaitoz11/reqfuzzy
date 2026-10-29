@@ -1,0 +1,38 @@
+name: juice-shop-checkout
+steps:
+  - id: signup
+    request: signup
+    expect_status: 201
+    before_send: fresh-account
+    extract:
+      - {name: email, json: data.email}
+  - id: login
+    request: login
+    expect_status: 200
+    bind:
+      - {location: json, path: email, variable: email}
+    extract:
+      - {name: token, json: authentication.token}
+      - {name: basket_id, json: authentication.bid}
+  - id: add
+    request: add
+    expect_status: 200
+    bind:
+      - {location: header, path: Authorization, variable: token, prefix: "Bearer "}
+      - {location: json, path: BasketId, variable: basket_id}
+    extract:
+      - {name: item_id, json: data.id}
+  - id: update
+    request: update
+    expect_status: 200
+    bind:
+      - {location: header, path: Authorization, variable: token, prefix: "Bearer "}
+      - {location: path, path: "2", variable: item_id}
+  - id: checkout
+    request: checkout
+    expect_status: 200
+    bind:
+      - {location: header, path: Authorization, variable: token, prefix: "Bearer "}
+      - {location: path, path: "2", variable: basket_id}
+    extract:
+      - {name: order_id, json: orderConfirmation}

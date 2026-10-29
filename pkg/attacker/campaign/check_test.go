@@ -42,3 +42,23 @@ func TestCheckUsesTrialStateRatherThanBaselineState(t *testing.T) {
 		t.Fatal("missing variable passed")
 	}
 }
+
+func TestBooleanChecksUseJSONBooleanType(t *testing.T) {
+	changed := trial(`{"allowed":false}`)
+	check := campaign.Check{ID: "allowed", Step: "observe", Select: "json", Path: "allowed", Op: "eq", Value: campaign.Scalar("true")}
+	if got := campaign.EvaluateCheck(check, changed, changed); got.Outcome != campaign.Fail {
+		t.Fatalf("false eq true: %#v", got)
+	}
+	check.Op = "ne"
+	if got := campaign.EvaluateCheck(check, changed, changed); got.Outcome != campaign.Pass {
+		t.Fatalf("false ne true: %#v", got)
+	}
+}
+
+func TestDuplicateJSONObservationIsInconclusive(t *testing.T) {
+	changed := trial(`{"balance":90,"balance":110}`)
+	check := campaign.Check{ID: "balance", Step: "observe", Select: "json", Path: "balance", Op: "lte", Value: campaign.Scalar("100")}
+	if got := campaign.EvaluateCheck(check, changed, changed); got.Outcome != campaign.Inconclusive {
+		t.Fatalf("ambiguous observation accepted: %#v", got)
+	}
+}

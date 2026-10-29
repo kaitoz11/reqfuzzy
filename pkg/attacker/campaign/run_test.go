@@ -149,3 +149,18 @@ func TestEvidenceFailureStopsBeforeFurtherTrials(t *testing.T) {
 		t.Fatalf("continued without evidence: %#v %v", result, err)
 	}
 }
+
+func TestLaterEvidenceFailureDoesNotReportCompletedPass(t *testing.T) {
+	runner, main, verify, spec := setup(t, reference.Options{})
+	records := 0
+	result, err := campaign.Run(context.Background(), runner, main, verify, spec, campaign.Options{Record: func(campaign.Trial) error {
+		records++
+		if records == 2 {
+			return fmt.Errorf("disk full")
+		}
+		return nil
+	}})
+	if err == nil || len(result.Cases) != 1 || records != 2 || result.Outcome != campaign.Inconclusive {
+		t.Fatalf("partial run reported completion: outcome=%s cases=%d err=%v records=%d", result.Outcome, len(result.Cases), err, records)
+	}
+}

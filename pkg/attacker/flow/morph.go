@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/kaitoz11/reqfuzzy/pkg/attacker"
+	"github.com/kaitoz11/reqfuzzy/pkg/attacker/jsonutil"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 	"golang.org/x/net/http/httpguts"
@@ -55,6 +56,11 @@ func BuildMutation(spec MutationSpec) (Mutation, error) {
 		}
 	}
 	return func(request attacker.Request, _ Variables) error {
+		if spec.Location == "json" {
+			if err := jsonutil.ValidateUnique(request.Body); err != nil {
+				return err
+			}
+		}
 		if spec.Action == "set" {
 			return bindValue(request, Binding{Location: spec.Location, Path: spec.Path}, payload)
 		}

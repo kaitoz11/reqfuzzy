@@ -61,6 +61,9 @@ func (c *HClient) UseBaseURL(baseURL string) {
 	c.httpClient.SetBaseURL(baseURL)
 }
 
+// CloseIdleConnections releases transport resources owned by a completed journey.
+func (c *HClient) CloseIdleConnections() { c.httpClient.GetClient().CloseIdleConnections() }
+
 func (c *HClient) SendRequest(r Request) (Response, error) {
 	baseURL := c.httpClient.BaseURL
 	response, err := r.Send(r.Method, baseURL+r.RawURL)

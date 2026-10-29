@@ -67,3 +67,26 @@ func TestRemoveRequiresExistingField(t *testing.T) {
 		t.Fatal("no-op removal accepted")
 	}
 }
+
+func TestJSONMutationRejectsDuplicateMembersAndAncestors(t *testing.T) {
+	for _, body := range []string{`{"name":"one","name":"two"}`, `{"outer":{"name":"one"},"outer":{"name":"two"}}`} {
+		path := "name"
+		if body[2] == 'o' {
+			path = "outer.name"
+		}
+		for _, action := range []string{"set", "remove", "append", "prepend"} {
+			request, _ := attacker.NewHClient().ParseRawRequest([]byte("POST / HTTP/1.1\r\nContent-Type: application/json\r\n\r\n" + body))
+			var value []byte
+			if action != "remove" {
+				value = []byte(`"changed"`)
+			}
+			mutation, err := flow.BuildMutation(flow.MutationSpec{Action: action, Location: "json", Path: path, Value: value})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := mutation(request, nil); err == nil {
+				t.Fatalf("%s accepted ambiguous JSON: %s", action, body)
+			}
+		}
+	}
+}

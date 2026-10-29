@@ -10,6 +10,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/kaitoz11/reqfuzzy/pkg/attacker/flow"
+	"github.com/kaitoz11/reqfuzzy/pkg/attacker/jsonutil"
 	"github.com/tidwall/gjson"
 )
 
@@ -35,8 +36,8 @@ func observation(check Check, trial Trial) (Scalar, error) {
 			raw, _ := json.Marshal(string(step.ResponseBody))
 			return Scalar(raw), nil
 		case "json":
-			if !gjson.ValidBytes(step.ResponseBody) {
-				return nil, fmt.Errorf("response is not JSON")
+			if err := jsonutil.ValidateUnique(step.ResponseBody); err != nil {
+				return nil, fmt.Errorf("response JSON is invalid or ambiguous")
 			}
 			selected := gjson.GetBytes(step.ResponseBody, check.Path)
 			if !selected.Exists() || selected.Type == gjson.JSON {
@@ -124,7 +125,8 @@ func compare(actual, expected Scalar, operator string) (bool, error) {
 		}
 		return found, nil
 	}
-	if a.Type != b.Type {
+	booleans := (a.Type == gjson.True || a.Type == gjson.False) && (b.Type == gjson.True || b.Type == gjson.False)
+	if a.Type != b.Type && !booleans {
 		return false, fmt.Errorf("check operands have different JSON types")
 	}
 	order := 0

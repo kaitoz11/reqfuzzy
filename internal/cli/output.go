@@ -90,6 +90,20 @@ func emit(stdout, stderr io.Writer, jsonMode bool, command string, result any, c
 		fmt.Fprintln(stderr)
 	}
 	switch value := result.(type) {
+	case testSummary:
+		fmt.Fprintf(stdout, "%s: %s\n", value.Name, value.Outcome)
+		fmt.Fprintf(stdout, "  baseline: %s\n", value.Baseline.Outcome)
+		for _, trial := range value.Cases {
+			fmt.Fprintf(stdout, "  %s: %s", trial.ID, trial.Outcome)
+			if trial.Reason != "" {
+				fmt.Fprintf(stdout, " (%s)", trial.Reason)
+			}
+			fmt.Fprintln(stdout)
+			for _, check := range trial.Checks {
+				fmt.Fprintf(stdout, "    %s: %s\n", check.ID, check.Outcome)
+			}
+		}
+		fmt.Fprintf(stdout, "  evidence: %s\n", value.ArtifactsDir)
 	case runSummary:
 		printRun(stdout, value)
 	case comparisonSummary:

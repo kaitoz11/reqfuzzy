@@ -86,6 +86,7 @@ func Run(ctx context.Context, runner flow.Runner, main flow.Flow, verification *
 	result.Baseline = baseline
 	if options.Record != nil {
 		if err := options.Record(baseline); err != nil {
+			result.Outcome = Inconclusive
 			return result, err
 		}
 	}
@@ -114,6 +115,7 @@ func Run(ctx context.Context, runner flow.Runner, main flow.Flow, verification *
 		}
 		if options.Record != nil {
 			if err := options.Record(trial); err != nil {
+				result.Outcome = Inconclusive
 				return result, err
 			}
 		}
@@ -130,6 +132,13 @@ func executeTrial(ctx context.Context, runner flow.Runner, main flow.Flow, verif
 	// A trial has one fresh actor cache; main and verification reuse its sessions.
 	original := runner.NewClient
 	clients := map[string]*attacker.HClient{}
+	defer func() {
+		for _, client := range clients {
+			if client != nil {
+				client.CloseIdleConnections()
+			}
+		}
+	}()
 	runner.NewClient = func(actor string) (*attacker.HClient, error) {
 		if client := clients[actor]; client != nil {
 			return client, nil

@@ -31,9 +31,10 @@ The example obtains a fresh token, signs the final request body, and reads back 
 - [Stateful mutation tests and reproducible evidence](docs/journey-tests.md)
 - [HAR import and flow inference](docs/har-flow-inference.md)
 - [Flow model and Go API](docs/flow-mutation.md)
+- [Binding and mutation locations](docs/request-locations.md)
 
 Reusable test cases can set, remove, append, and prepend values, run downstream verification, evaluate explicit invariants, and record protected evidence for reconstruction. Start with the [stateful reference example](docs/journey-tests.md) to see secure rejection, an intentional balance bug, and invalid-session handling.
 
-Current inference covers JSON response scalars passed into path segments, headers, query values, and JSON bodies, including Bearer tokens. Short or ambiguous IDs can be bound explicitly. The [Juice Shop checkout example](examples/juice-shop/README.md) demonstrates fresh accounts, dynamic path IDs, quantity mutation, persisted-order checks, and reconstruction against a pinned local application.
+Current inference covers JSON response scalars passed into path segments, headers, query values, JSON bodies, and URL-encoded form fields, including Bearer tokens. Short or ambiguous IDs can be bound explicitly. All five locations support set/remove/append/prepend mutations. The [Juice Shop checkout example](examples/juice-shop/README.md) demonstrates fresh accounts, dynamic path IDs, quantity mutation, persisted-order checks, and reconstruction against a pinned local application.
 
-Cookie/form inference, additional mutation locations, broader payload/template support, flexible flow control, and a visual dependency view remain separate increments.
+Cookie/multipart inference, broader payload/template support, flexible flow control, and a visual dependency view remain separate increments.

@@ -4,10 +4,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/kaitoz11/reqfuzzy/pkg/attacker/flow"
 	"github.com/kaitoz11/reqfuzzy/pkg/attacker/jsonutil"
+	"github.com/kaitoz11/reqfuzzy/pkg/attacker/urlform"
 	"github.com/tidwall/gjson"
 )
 
@@ -18,6 +21,32 @@ type selection struct {
 
 func selectRequest(message flow.RequestSnapshot, target Target, action string) (selection, error) {
 	switch target.Location {
+	case "path":
+		parsed, err := url.Parse(message.RawURL)
+		if err != nil || !strings.HasPrefix(parsed.EscapedPath(), "/") {
+			return selection{}, fmt.Errorf("request path is unavailable")
+		}
+		if action == "remove" {
+			// Deletion shifts slot indices. Compare the whole resulting path.
+			return selection{true, []byte(parsed.EscapedPath())}, nil
+		}
+		index, err := strconv.Atoi(target.Path)
+		parts := strings.Split(strings.TrimPrefix(parsed.EscapedPath(), "/"), "/")
+		if err != nil || index < 0 || index >= len(parts) {
+			return selection{}, nil
+		}
+		return selection{true, []byte(parts[index])}, nil
+	case "form":
+		if message.BodySource == "unavailable" {
+			return selection{}, fmt.Errorf("sent form body is unavailable")
+		}
+		fields, err := urlform.Parse(message.Headers, message.Body)
+		if err != nil {
+			return selection{}, err
+		}
+		values := fields[target.Path]
+		raw, _ := json.Marshal(values)
+		return selection{len(values) > 0, raw}, nil
 	case "json":
 		if message.BodySource == "unavailable" {
 			return selection{}, fmt.Errorf("sent body is unavailable")

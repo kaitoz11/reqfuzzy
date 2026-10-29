@@ -10,6 +10,7 @@ import (
 
 	"github.com/kaitoz11/reqfuzzy/pkg/attacker"
 	"github.com/kaitoz11/reqfuzzy/pkg/attacker/jsonutil"
+	"github.com/kaitoz11/reqfuzzy/pkg/attacker/urlform"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 	"golang.org/x/net/http/httpguts"
@@ -40,7 +41,11 @@ func BuildMutation(spec MutationSpec) (Mutation, error) {
 		if strings.EqualFold(spec.Path, "Content-Length") || strings.EqualFold(spec.Path, "Transfer-Encoding") || (strings.EqualFold(spec.Path, "Host") && spec.Action == "remove") {
 			return nil, fmt.Errorf("mutation is unsupported for a transport-managed header")
 		}
-	case "query", "json":
+	case "path":
+		if _, err := pathIndex(spec.Path); err != nil {
+			return nil, err
+		}
+	case "query", "json", "form":
 	default:
 		return nil, fmt.Errorf("unsupported mutation location %q", spec.Location)
 	}
@@ -176,6 +181,29 @@ func jsonMutationApplied(request attacker.Request, lookup string, expected []byt
 
 func existingValue(request attacker.Request, location, path string, uniqueString bool) (Value, error) {
 	switch location {
+	case "path":
+		_, parts, index, err := pathAddress(request.RawURL, path)
+		if err != nil {
+			return Value{}, err
+		}
+		text, err := url.PathUnescape(parts[index])
+		if err != nil {
+			return Value{}, fmt.Errorf("invalid path segment")
+		}
+		return Value{Text: text}, nil
+	case "form":
+		fields, err := urlform.Parse(request.Headers, request.Body)
+		if err != nil {
+			return Value{}, err
+		}
+		values := fields[path]
+		if len(values) == 0 {
+			return Value{}, fmt.Errorf("mutation form key does not exist")
+		}
+		if uniqueString && len(values) != 1 {
+			return Value{}, fmt.Errorf("append/prepend cannot target repeated form keys")
+		}
+		return Value{Text: values[0]}, nil
 	case "json":
 		if !gjson.ValidBytes(request.Body) {
 			return Value{}, fmt.Errorf("request body is not JSON")
@@ -225,6 +253,18 @@ func existingValue(request attacker.Request, location, path string, uniqueString
 
 func removeValue(request attacker.Request, location, path string) error {
 	switch location {
+	case "path":
+		updated, err := removePathSegment(request.RawURL, path)
+		if err != nil {
+			return err
+		}
+		request.SetURL(updated)
+	case "form":
+		body, err := urlform.Remove(request.Headers, request.Body, path)
+		if err != nil {
+			return err
+		}
+		request.SetBodyBytes(body)
 	case "json":
 		body, err := sjson.DeleteBytes(request.Body, path)
 		if err != nil {

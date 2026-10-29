@@ -25,7 +25,7 @@ func RunContext(ctx context.Context, args []string, stdout, stderr io.Writer) in
 		}
 	}
 	if len(args) == 0 || args[0] == "--help" || args[0] == "-h" {
-		fmt.Fprintln(stdout, "reqfuzzy import --out DIR [--origin URL] HAR\nreqfuzzy flow show --project DIR [--json]\nreqfuzzy flow run --project DIR --base-url URL [--json]\nreqfuzzy flow compare --project DIR --base-url URL --step ID --location json|header|query --path KEY --value VALUE [--json]\nreqfuzzy flow test --project DIR --base-url URL --test tests.yaml --out RUN_DIR [--json]\nreqfuzzy flow replay --project DIR --base-url URL --run RUN_DIR --case ID --out NEW_RUN_DIR [--json]")
+		fmt.Fprintln(stdout, "reqfuzzy import --out DIR [--origin URL] HAR\nreqfuzzy flow show --project DIR [--json]\nreqfuzzy flow run --project DIR --base-url URL [--json]\nreqfuzzy flow compare --project DIR --base-url URL --step ID --location json|header|query|path|form --path KEY --value VALUE [--json]\nreqfuzzy flow test --project DIR --base-url URL --test tests.yaml --out RUN_DIR [--json]\nreqfuzzy flow replay --project DIR --base-url URL --run RUN_DIR --case ID --out NEW_RUN_DIR [--json]")
 		return 0
 	}
 	command := args[0]
@@ -143,6 +143,11 @@ func RunContext(ctx context.Context, args []string, stdout, stderr io.Writer) in
 		mutation = flow.StepMutation{StepID: *step, Apply: apply}
 	}
 	runner := newRunner(project, target, before, after, 0)
+	if command == "flow compare" {
+		if err := runner.PreflightTarget(project.Flow, *step, *location, *path); err != nil {
+			return emit(stdout, stderr, jsonMode, command, nil, 1, err)
+		}
+	}
 	if command == "flow run" {
 		result, err := runner.Run(execution, project.Flow, nil)
 		code := 0

@@ -12,12 +12,14 @@ The user delegated independent application selection. The subsequent [Juice Shop
 
 The path-dependency feature branch extends binding and conservative inference to whole URL segments. The Juice Shop example now declares its short numeric IDs explicitly, so the dependency graph shows `add → update` and `login → checkout` without URL-changing hooks. Short or ambiguous IDs still require manual authoring. This feature remains separate from the integrated development branch until its change is merged.
 
+The request-locations feature branch adds path-segment mutations and UTF-8 URL-encoded form binding, inference, and mutations. All five locations (`json`, `header`, `query`, `path`, `form`) support set/remove/append/prepend. Static target structure is checked before a campaign baseline or CLI comparison, and proof evaluates the actual sent segment/body, including media type and content encoding for forms. Review approved the final encoding fix; race tests, vet, and the CLI build passed. This slice is stacked on the path-dependency change and still requires integration.
+
 The complete goal remains unproven. These gaps still matter:
 
 - Third-party acceptance now exists for Juice Shop's checkout API; broader application compatibility remains unproven.
-- Mutation coverage needs additional PayInt-style operations and request locations. Path bindings and inference are implemented on their feature branch; path-targeted mutations and cookie/form/multipart dependencies remain outside current coverage.
+- Mutation coverage needs additional PayInt-style payload/template operations and request locations. Path/form capabilities are implemented on feature branches; named cookie and multipart dependencies/mutations remain outside current coverage.
 - A visual dependency view and more flexible flow control remain to be proved against realistic captured journeys. A visual editor, complete PayInt corpus parity, and distributed execution are not prerequisites for the first useful tool.
 
 No completion claim should rely on CI alone. It must demonstrate the operator workflow on an independent reference API with changing tokens/nonces, signing, rejected and accepted mutations, and downstream invariant checks; then validate it on an operator-provided capture when one is available.
 
-Next delivery priority is core capability rather than more acceptance variants: deliver explicit path dependencies, expand request mutation locations, then expose inferred and authored dependencies in a visual view. The existing CLI/journey slices are integrated.
+Next delivery priority is core capability rather than more acceptance variants: integrate the reviewed path/form slices, add named cookie handling, then expose inferred and authored dependencies in a visual view. The existing CLI/journey slices are integrated.

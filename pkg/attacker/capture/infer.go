@@ -2,6 +2,7 @@ package capture
 
 import (
 	"fmt"
+	"net/http"
 	"net/url"
 	"sort"
 	"strconv"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/kaitoz11/reqfuzzy/pkg/attacker/flow"
 	"github.com/kaitoz11/reqfuzzy/pkg/attacker/rawreq"
+	"github.com/kaitoz11/reqfuzzy/pkg/attacker/urlform"
 	"gopkg.in/yaml.v3"
 )
 
@@ -172,8 +174,28 @@ func requestValues(exchange Exchange) ([]requestValue, error) {
 		}
 		values = append(values, requestValue{Location: "header", Path: header.Key, Text: header.Value})
 	}
-	for _, leaf := range jsonLeaves(parsed.Body) {
-		values = append(values, requestValue{Location: "json", Path: leaf.Path, Kind: leaf.Kind, Text: leaf.Text})
+	headers := make(http.Header)
+	for _, header := range parsed.Headers {
+		headers.Add(header.Key, header.Value)
+	}
+	if urlform.IsForm(headers) {
+		fields, err := urlform.Parse(headers, parsed.Body)
+		if err == nil {
+			keys := make([]string, 0, len(fields))
+			for key := range fields {
+				keys = append(keys, key)
+			}
+			sort.Strings(keys)
+			for _, key := range keys {
+				if key != "" && len(fields[key]) == 1 {
+					values = append(values, requestValue{Location: "form", Path: key, Text: fields[key][0]})
+				}
+			}
+		}
+	} else {
+		for _, leaf := range jsonLeaves(parsed.Body) {
+			values = append(values, requestValue{Location: "json", Path: leaf.Path, Kind: leaf.Kind, Text: leaf.Text})
+		}
 	}
 	return values, nil
 }

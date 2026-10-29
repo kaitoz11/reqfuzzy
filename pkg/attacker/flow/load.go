@@ -82,7 +82,7 @@ func ValidateWithVariables(candidate Flow, initial Variables) error {
 				return fmt.Errorf("flow step %q: binding path and variable are required", step.ID)
 			}
 			switch binding.Location {
-			case "header", "query", "json", "path":
+			case "header", "query", "json", "path", "form":
 			default:
 				return fmt.Errorf("flow step %q: unsupported binding location %q", step.ID, binding.Location)
 			}

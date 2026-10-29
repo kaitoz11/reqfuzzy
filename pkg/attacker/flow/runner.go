@@ -9,6 +9,7 @@ import (
 
 	"github.com/kaitoz11/reqfuzzy/pkg/attacker"
 	"github.com/kaitoz11/reqfuzzy/pkg/attacker/rawreq"
+	"github.com/kaitoz11/reqfuzzy/pkg/attacker/urlform"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 )
@@ -46,10 +47,8 @@ func (r Runner) Preflight(definition Flow) error {
 			return &StepError{Kind: RequestError, StepID: step.ID, Err: err}
 		}
 		for _, binding := range step.Bind {
-			if binding.Location == "path" {
-				if _, _, _, err := pathAddress(stored.ParsedRequest.Path, binding.Path); err != nil {
-					return &StepError{Kind: BindingError, StepID: step.ID, Err: err}
-				}
+			if err := validateTarget(stored.ParsedRequest, binding.Location, binding.Path); err != nil {
+				return &StepError{Kind: BindingError, StepID: step.ID, Err: err}
 			}
 		}
 		if step.BeforeSend != "" && r.BeforeSend[step.BeforeSend] == nil {
@@ -270,6 +269,12 @@ func bindValue(request attacker.Request, binding Binding, value Value) error {
 			return err
 		}
 		request.SetURL(updated)
+	case "form":
+		body, err := urlform.Set(request.Headers, request.Body, binding.Path, binding.Prefix+value.Text)
+		if err != nil {
+			return err
+		}
+		request.SetBodyBytes(body)
 	case "header":
 		for key := range request.Headers {
 			if strings.EqualFold(key, binding.Path) {

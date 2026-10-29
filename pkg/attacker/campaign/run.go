@@ -32,6 +32,9 @@ func Preflight(runner flow.Runner, main flow.Flow, verification *flow.Flow, spec
 	if !targetFound {
 		return fmt.Errorf("test target step does not exist")
 	}
+	if err := runner.PreflightTarget(main, spec.Target.Step, spec.Target.Location, spec.Target.Path); err != nil {
+		return err
+	}
 	declared := DeclaredVariables(main, runner.InitialVariables)
 	verifySteps := map[string]bool{}
 	if spec.Verify != "" && verification == nil {

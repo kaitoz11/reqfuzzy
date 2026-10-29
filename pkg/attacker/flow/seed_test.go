@@ -49,6 +49,9 @@ func TestSeededVerificationFlowKeepsValuesAndSentMetadata(t *testing.T) {
 	if sent == nil || sent.RawURL != server.URL+"/balance" || sent.Headers.Get("Cookie") == "" || result.Steps[1].ResponseHeaders.Get("X-Evidence") != "present" {
 		t.Fatalf("incomplete HTTP evidence: %#v", result.Steps[1])
 	}
+	if len(sent.Headers["__header_order__"]) != 0 {
+		t.Fatal("transport control metadata recorded as an HTTP header")
+	}
 	result.Variables["token"].RawJSON[0] = 'x'
 	if string(seed["token"].RawJSON) != `"token-seed"` {
 		t.Fatal("run mutated the seed")

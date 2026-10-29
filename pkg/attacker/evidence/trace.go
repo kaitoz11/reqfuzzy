@@ -41,6 +41,7 @@ type stepEvidence struct {
 	Actor     string           `json:"actor"`
 	Prepared  requestEvidence  `json:"prepared"`
 	Sent      *requestEvidence `json:"sent,omitempty"`
+	Mutated   *requestEvidence `json:"mutated_before_hooks,omitempty"`
 	Response  responseEvidence `json:"response"`
 	Extracted []string         `json:"extracted_names"`
 }
@@ -57,7 +58,7 @@ func sensitiveName(name string) bool {
 	case "authorization", "proxyauthorization", "cookie", "setcookie", "password", "passwd", "token", "accesstoken", "refreshtoken", "secret", "clientsecret", "apikey", "signingkey", "session", "sessionid", "referencesid", "otp", "nonce":
 		return true
 	}
-	return strings.HasSuffix(normalized, "token") || strings.HasSuffix(normalized, "secret") || strings.HasSuffix(normalized, "password")
+	return strings.HasSuffix(normalized, "token") || strings.HasSuffix(normalized, "secret") || strings.HasSuffix(normalized, "password") || strings.HasSuffix(normalized, "apikey") || strings.HasSuffix(normalized, "signature")
 }
 func listed(name string, list []string) bool {
 	for _, candidate := range list {
@@ -118,9 +119,12 @@ func (s *Store) body(raw []byte) bodyEvidence {
 	for _, path := range s.redaction.JSONPaths {
 		if gjson.GetBytes(redacted, path).Exists() {
 			updated, err := sjson.SetRawBytes(redacted, path, []byte(`"[REDACTED]"`))
-			if err == nil {
-				redacted = updated
+			selected := gjson.GetBytes(updated, path)
+			if err != nil || selected.Type != gjson.String || selected.String() != "[REDACTED]" {
+				result.Omitted = true
+				return result
 			}
+			redacted = updated
 		}
 	}
 	decoder := json.NewDecoder(bytes.NewReader(redacted))
@@ -169,6 +173,10 @@ func (s *Store) run(result flow.RunResult) runEvidence {
 		if step.SentRequest != nil {
 			sent := s.request(*step.SentRequest)
 			trace.Sent = &sent
+		}
+		if step.MutationRequest != nil {
+			mutated := s.request(*step.MutationRequest)
+			trace.Mutated = &mutated
 		}
 		output.Steps = append(output.Steps, trace)
 	}

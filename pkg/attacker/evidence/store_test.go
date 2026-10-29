@@ -30,7 +30,7 @@ func TestPrivateEvidenceRedactsMessagesAndPreservesProvenance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	message := flow.RequestSnapshot{Method: "POST", RawURL: "http://reference.test/transfer?token=secret123&id=42", Host: "reference.test", Headers: http.Header{"Authorization": []string{"Bearer secret123"}, "Cookie": []string{"sid=cookie-session"}}, Body: []byte(`{"token":"secret123","balance":110,"customer":{"account":"hidden-account"}}`)}
+	message := flow.RequestSnapshot{Method: "POST", RawURL: "http://reference.test/transfer?token=secret123&id=42", Host: "reference.test", Headers: http.Header{"Authorization": []string{"Bearer secret123"}, "Cookie": []string{"sid=cookie-session"}, "X-API-Key": []string{"api-key-value"}, "X-Signature": []string{"signature-value"}}, Body: []byte(`{"token":"secret123","balance":110,"customer":{"account":"hidden-account"}}`)}
 	trial := campaign.Trial{ID: "baseline", Outcome: campaign.Pass, Flow: flow.RunResult{FlowName: "reference", Steps: []flow.StepResult{{StepID: "transfer", Request: message, SentRequest: &message, StatusCode: 201, ResponseHeaders: http.Header{"Set-Cookie": []string{"sid=cookie-session"}}, ResponseBody: message.Body}}}}
 	if err := store.Record(trial); err != nil {
 		t.Fatal(err)
@@ -43,7 +43,7 @@ func TestPrivateEvidenceRedactsMessagesAndPreservesProvenance(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, secret := range []string{"secret123", "cookie-session", "hidden-account", "secret source"} {
+		for _, secret := range []string{"secret123", "cookie-session", "hidden-account", "secret source", "api-key-value", "signature-value"} {
 			if strings.Contains(string(data), secret) {
 				t.Fatalf("%s leaked %q", name, secret)
 			}
@@ -138,5 +138,22 @@ func TestUnsupportedMatchingRedactionPathOmitsBody(t *testing.T) {
 	data, _ := os.ReadFile(filepath.Join(store.Directory(), "one.json"))
 	if strings.Contains(string(data), "hidden-account") {
 		t.Fatalf("unapplied configured redaction leaked: %s", data)
+	}
+}
+
+func TestPipeRedactionCannotSilentlyLeaveOriginalValue(t *testing.T) {
+	for _, path := range []string{"items|0.account", "items.0.account|@this"} {
+		store, err := evidence.NewStore(filepath.Join(t.TempDir(), "run"), evidence.Recipe{FormatVersion: 1, TestPath: "tests.yaml", Inputs: map[string]string{"test": strings.Repeat("a", 64)}, Cases: []string{"one"}, BaseURL: "http://reference.test"}, campaign.Redaction{JSONPaths: []string{path}}, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		trial := campaign.Trial{ID: "one", Flow: flow.RunResult{Steps: []flow.StepResult{{StepID: "one", StatusCode: 200, ResponseBody: []byte(`{"items":[{"account":"hidden-account"}]}`)}}}}
+		if err := store.Record(trial); err != nil {
+			t.Fatal(err)
+		}
+		data, _ := os.ReadFile(filepath.Join(store.Directory(), "one.json"))
+		if strings.Contains(string(data), "hidden-account") {
+			t.Fatalf("redaction %q leaked original value", path)
+		}
 	}
 }

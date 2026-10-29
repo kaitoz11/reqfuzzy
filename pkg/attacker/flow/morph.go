@@ -27,6 +27,9 @@ func BuildMutation(spec MutationSpec) (Mutation, error) {
 		if !httpguts.ValidHeaderFieldName(spec.Path) {
 			return nil, fmt.Errorf("invalid mutation header")
 		}
+		if strings.EqualFold(spec.Path, "Content-Length") || strings.EqualFold(spec.Path, "Transfer-Encoding") || (strings.EqualFold(spec.Path, "Host") && spec.Action == "remove") {
+			return nil, fmt.Errorf("mutation is unsupported for a transport-managed header")
+		}
 	case "query", "json":
 	default:
 		return nil, fmt.Errorf("unsupported mutation location %q", spec.Location)

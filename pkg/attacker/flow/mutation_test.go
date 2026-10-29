@@ -90,3 +90,11 @@ func TestJSONMutationRejectsDuplicateMembersAndAncestors(t *testing.T) {
 		}
 	}
 }
+
+func TestNormalHTTPMutationRejectsManagedFramingAndHostRemoval(t *testing.T) {
+	for _, spec := range []flow.MutationSpec{{Action: "remove", Location: "header", Path: "Host"}, {Action: "set", Location: "header", Path: "Content-Length", Value: []byte(`"0"`)}, {Action: "remove", Location: "header", Path: "Transfer-Encoding"}} {
+		if _, err := flow.BuildMutation(spec); err == nil {
+			t.Fatalf("unsupported transport-managed mutation accepted: %#v", spec)
+		}
+	}
+}

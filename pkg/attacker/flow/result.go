@@ -21,6 +21,7 @@ type StepResult struct {
 	RequestName     string
 	Request         RequestSnapshot
 	SentRequest     *RequestSnapshot
+	MutationRequest *RequestSnapshot
 	StatusCode      int
 	ResponseHeaders http.Header
 	ResponseBody    []byte

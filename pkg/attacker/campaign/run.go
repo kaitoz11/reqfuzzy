@@ -176,6 +176,14 @@ func executeTrial(ctx context.Context, runner flow.Runner, main flow.Flow, verif
 		}
 		executionError(&trial, runErr)
 	}
+	if mutation != nil {
+		proof, ok := mutationSurvived(trial.Flow, spec.Target)
+		trial.MutationProof = proof
+		if !ok {
+			trial.Reason = "target mutation was overwritten or its sent value cannot be verified"
+			return trial
+		}
+	}
 	if verification != nil {
 		runner.InitialVariables = trial.Flow.Variables
 		trial.Verification, runErr = runner.Run(ctx, *verification, nil)

@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/imroc/req/v3"
 	"github.com/kaitoz11/reqfuzzy/pkg/attacker"
 	"github.com/kaitoz11/reqfuzzy/pkg/attacker/rawreq"
 	"github.com/tidwall/gjson"
@@ -29,6 +30,7 @@ type Runner struct {
 	BeforeSend       map[string]BeforeSend
 	AfterResponse    map[string]AfterResponse
 	Prepare          BeforeSend
+	Initialize       BeforeSend
 	InitialVariables Variables
 }
 
@@ -121,6 +123,11 @@ func (r Runner) Run(ctx context.Context, definition Flow, mutation *StepMutation
 		}
 		request.SetContext(ctx)
 		request.SetContextData(rawreq.RequestBodyType, contexts[step.Request].ParsedRequest.BodyType)
+		if r.Initialize != nil {
+			if err := r.Initialize(request, result.Variables); err != nil {
+				return failRun(result, step.ID, HookError, err)
+			}
+		}
 		for _, binding := range step.Bind {
 			value, exists := result.Variables[binding.Variable]
 			if !exists {
@@ -130,10 +137,13 @@ func (r Runner) Run(ctx context.Context, definition Flow, mutation *StepMutation
 				return failRun(result, step.ID, BindingError, err)
 			}
 		}
+		var mutationRequest *RequestSnapshot
 		if mutation != nil && mutation.StepID == step.ID {
 			if err := mutation.Apply(request, result.Variables); err != nil {
 				return failRun(result, step.ID, MutationError, err)
 			}
+			changed := snapshot(request)
+			mutationRequest = &changed
 		}
 		if r.Prepare != nil {
 			if err := r.Prepare(request, result.Variables); err != nil {
@@ -146,11 +156,12 @@ func (r Runner) Run(ctx context.Context, definition Flow, mutation *StepMutation
 			}
 		}
 		trace := StepResult{
-			StepID:      step.ID,
-			Actor:       actor,
-			RequestName: step.Request,
-			Request:     snapshot(request),
-			Extracted:   make(Variables),
+			StepID:          step.ID,
+			Actor:           actor,
+			RequestName:     step.Request,
+			Request:         snapshot(request),
+			Extracted:       make(Variables),
+			MutationRequest: mutationRequest,
 		}
 		response, err := client.SendRequest(request)
 		trace.SentRequest = sentSnapshot(request, response)
@@ -330,5 +341,8 @@ func sentSnapshot(request attacker.Request, response attacker.Response) *Request
 	if raw == nil || raw.URL == nil {
 		return nil
 	}
-	return &RequestSnapshot{Method: raw.Method, RawURL: raw.URL.String(), Host: raw.Host, Query: raw.URL.Query(), Headers: raw.Header.Clone(), Body: append([]byte(nil), request.Body...)}
+	headers := raw.Header.Clone()
+	delete(headers, req.HeaderOderKey)
+	delete(headers, req.PseudoHeaderOderKey)
+	return &RequestSnapshot{Method: raw.Method, RawURL: raw.URL.String(), Host: raw.Host, Query: raw.URL.Query(), Headers: headers, Body: append([]byte(nil), request.Body...)}
 }

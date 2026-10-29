@@ -61,9 +61,10 @@ func (s *Scalar) UnmarshalJSON(raw []byte) error {
 }
 
 type Target struct {
-	Step     string `yaml:"step" json:"step"`
-	Location string `yaml:"location" json:"location"`
-	Path     string `yaml:"path" json:"path"`
+	Step           string `yaml:"step" json:"step"`
+	Location       string `yaml:"location" json:"location"`
+	Path           string `yaml:"path" json:"path"`
+	AllowTransform bool   `yaml:"allow_transform,omitempty" json:"allow_transform,omitempty"`
 }
 type Case struct {
 	ID     string `yaml:"id" json:"id"`
@@ -171,15 +172,16 @@ type CheckResult struct {
 	Expected Scalar  `json:"-"`
 }
 type Trial struct {
-	ID           string         `json:"id"`
-	Outcome      Outcome        `json:"outcome"`
-	Reason       string         `json:"reason,omitempty"`
-	TargetStatus int            `json:"target_status,omitempty"`
-	ErrorKind    flow.ErrorKind `json:"error_kind,omitempty"`
-	FailedStep   string         `json:"failed_step,omitempty"`
-	Flow         flow.RunResult `json:"-"`
-	Verification flow.RunResult `json:"-"`
-	Checks       []CheckResult  `json:"checks"`
+	ID            string         `json:"id"`
+	Outcome       Outcome        `json:"outcome"`
+	Reason        string         `json:"reason,omitempty"`
+	TargetStatus  int            `json:"target_status,omitempty"`
+	MutationProof string         `json:"mutation_proof,omitempty"`
+	ErrorKind     flow.ErrorKind `json:"error_kind,omitempty"`
+	FailedStep    string         `json:"failed_step,omitempty"`
+	Flow          flow.RunResult `json:"-"`
+	Verification  flow.RunResult `json:"-"`
+	Checks        []CheckResult  `json:"checks"`
 }
 type Result struct {
 	Name     string  `json:"name"`

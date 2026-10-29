@@ -164,3 +164,17 @@ func TestLaterEvidenceFailureDoesNotReportCompletedPass(t *testing.T) {
 		t.Fatalf("partial run reported completion: outcome=%s cases=%d err=%v records=%d", result.Outcome, len(result.Cases), err, records)
 	}
 }
+
+func TestHookErasedMutationIsInconclusive(t *testing.T) {
+	runner, main, verify, spec := setup(t, reference.Options{})
+	spec.Target.Location = "header"
+	spec.Target.Path = "X-Signature"
+	spec.Cases = []campaign.Case{{ID: "invalid-signature", Action: "set", Value: campaign.Scalar(`"invalid"`)}}
+	result, err := campaign.Run(context.Background(), runner, main, verify, spec, campaign.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Outcome != campaign.Inconclusive || len(result.Cases) != 1 || result.Cases[0].Outcome != campaign.Inconclusive {
+		t.Fatalf("erased mutation was treated as a valid test: outcome=%s cases=%d", result.Outcome, len(result.Cases))
+	}
+}

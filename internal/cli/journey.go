@@ -179,7 +179,15 @@ func newRunner(project project, target *url.URL, before map[string]flow.BeforeSe
 		client := attacker.NewHClient()
 		client.UseBaseURL(strings.TrimRight(target.String(), "/"))
 		return client, nil
-	}, BeforeSend: before, AfterResponse: after, Prepare: func(request attacker.Request, _ flow.Variables) error {
+	}, BeforeSend: before, AfterResponse: after, Initialize: func(request attacker.Request, _ flow.Variables) error {
+		for key := range request.Headers {
+			if strings.EqualFold(key, "Host") {
+				delete(request.Headers, key)
+			}
+		}
+		request.SetHeaderNonCanonical("Host", target.Host)
+		return nil
+	}, Prepare: func(request attacker.Request, _ flow.Variables) error {
 		if !last.IsZero() && delay > 0 {
 			remaining := delay - time.Since(last)
 			if remaining > 0 {
@@ -193,12 +201,6 @@ func newRunner(project project, target *url.URL, before map[string]flow.BeforeSe
 			}
 		}
 		last = time.Now()
-		for key := range request.Headers {
-			if strings.EqualFold(key, "Host") {
-				delete(request.Headers, key)
-			}
-		}
-		request.SetHeaderNonCanonical("Host", target.Host)
 		return nil
 	}}
 }

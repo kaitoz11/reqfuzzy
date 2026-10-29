@@ -223,3 +223,36 @@ func TestJourneyRequestBudgetRejectsBeforeTraffic(t *testing.T) {
 		t.Fatal("rejected plan created evidence output")
 	}
 }
+
+func TestHostMutationReachesServer(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]string{"host": r.Host})
+	}))
+	defer server.Close()
+	root := t.TempDir()
+	project := filepath.Join(root, "project")
+	input := filepath.Join(root, "capture.har")
+	write(t, input, har(t, "http://capture.test"))
+	if code, _, err := call("import", "--out", project, input); code != 0 {
+		t.Fatal(err)
+	}
+	data, _ := os.ReadFile(filepath.Join(project, "flow.yaml"))
+	definition, err := flow.LoadYAML(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	definition.Steps = []flow.Step{{ID: "probe", Request: definition.Steps[0].Request}}
+	data, _ = yaml.Marshal(definition)
+	write(t, filepath.Join(project, "flow.yaml"), data)
+	write(t, filepath.Join(project, "tests.yaml"), []byte(`version: 1
+name: host-is-morphed
+target: {step: probe, location: header, path: Host}
+observe_statuses: [200]
+cases: [{id: virtual-host, action: set, value: evil.example}]
+checks: [{id: same-host, step: probe, select: json, path: host, op: eq, baseline: true}]
+`))
+	code, out, stderr := call("flow", "test", "--project", project, "--base-url", server.URL, "--out", filepath.Join(root, "run"), "--json")
+	if code != 3 {
+		t.Fatalf("Host mutation was overwritten: code=%d out=%s err=%s", code, out, stderr)
+	}
+}

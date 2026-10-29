@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/kaitoz11/reqfuzzy/pkg/attacker/cookiefield"
 	"github.com/kaitoz11/reqfuzzy/pkg/attacker/flow"
 	"github.com/kaitoz11/reqfuzzy/pkg/attacker/jsonutil"
 	"github.com/kaitoz11/reqfuzzy/pkg/attacker/urlform"
@@ -21,6 +22,19 @@ type selection struct {
 
 func selectRequest(message flow.RequestSnapshot, target Target, action string) (selection, error) {
 	switch target.Location {
+	case "cookie":
+		cookies, err := cookiefield.Parse(message.Headers)
+		if err != nil {
+			return selection{}, err
+		}
+		var values []string
+		for _, cookie := range cookies {
+			if cookie.Name == target.Path {
+				values = append(values, cookie.Value)
+			}
+		}
+		raw, _ := json.Marshal(values)
+		return selection{len(values) > 0, raw}, nil
 	case "path":
 		parsed, err := url.Parse(message.RawURL)
 		if err != nil || !strings.HasPrefix(parsed.EscapedPath(), "/") {

@@ -65,6 +65,7 @@ func (c *HClient) UseBaseURL(baseURL string) {
 func (c *HClient) CloseIdleConnections() { c.httpClient.GetClient().CloseIdleConnections() }
 
 func (c *HClient) SendRequest(r Request) (Response, error) {
+	defer withCookieEdits(r)()
 	baseURL := c.httpClient.BaseURL
 	response, err := r.Send(r.Method, baseURL+r.RawURL)
 	if err != nil {
@@ -74,6 +75,7 @@ func (c *HClient) SendRequest(r Request) (Response, error) {
 }
 
 func (c *HClient) SendRequestWithBaseURL(r Request, baseURL string) (Response, error) {
+	defer withCookieEdits(r)()
 	response, err := r.Send(r.Method, baseURL+r.RawURL)
 	if err != nil {
 		return Response{nil}, err

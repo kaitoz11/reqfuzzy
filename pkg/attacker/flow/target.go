@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/kaitoz11/reqfuzzy/pkg/attacker/cookiefield"
 	"github.com/kaitoz11/reqfuzzy/pkg/attacker/rawreq"
 	"github.com/kaitoz11/reqfuzzy/pkg/attacker/urlform"
 )
@@ -33,6 +34,8 @@ func (r Runner) PreflightTarget(definition Flow, stepID, location, path string) 
 
 func validateTarget(parsed *rawreq.ParsedRawRequest, location, path string) error {
 	switch location {
+	case "cookie":
+		return cookiefield.Valid(path, "")
 	case "path":
 		_, _, _, err := pathAddress(parsed.Path, path)
 		return err

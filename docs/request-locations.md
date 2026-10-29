@@ -9,8 +9,36 @@ Use the same location names in step `bind` entries, `flow compare --location`, a
 | `query` | Decoded query key | Replace all selected occurrences | All selected occurrences | One existing value |
 | `path` | Quoted zero-based segment slot | Replace one escaped segment | Delete the selected slot | Existing segment text |
 | `form` | Decoded URL-encoded body key | Replace all selected occurrences | All selected occurrences | One existing value |
+| `cookie` | Case-sensitive cookie name | Override all selected-name values for this request | Suppress selected-name values for this request | One current value from the request/client/jar |
 
-Remove requires an existing target and takes no value. Append/prepend take string payloads. Null is a JSON-only value. Transport-managed framing headers and Host removal remain unsupported. Existing captured Cookie headers are still replaced by each actor's current cookie jar; named cookie mutations are a separate increment.
+Remove requires an existing target and takes no value. Append/prepend take string payloads. Null is a JSON-only value. Transport-managed framing headers and Host removal remain unsupported. Existing captured Cookie headers are still removed; current request bindings, client defaults, and the actor's live jar provide cookies.
+
+## Named cookies
+
+Extract a single response `Set-Cookie` value and bind it into a later request:
+
+```yaml
+steps:
+  - id: session
+    request: session
+    extract:
+      - {name: sid, cookie: reference_sid}
+  - id: transfer
+    request: transfer
+    bind:
+      - {location: cookie, path: reference_sid, variable: sid}
+    before_send: sign
+```
+
+Each extraction requires exactly one selector, `json` or `cookie`. A response-cookie selector must match exactly one valid `Set-Cookie` name; missing or duplicated names stop extraction. The result is the header's value, not a browser cookie-store query. Existing automatic jar handling remains available without explicit bindings.
+
+Use `target: {step: transfer, location: cookie, path: reference_sid}` for a campaign. Names are case sensitive. Values follow HTTP cookie syntax and are not URL-decoded or silently sanitized; semicolons, quotes, control bytes, and unsupported non-ASCII values are rejected. Percent sequences remain literal text. Set/remove affect all occurrences of the selected name on the chosen request; append/prepend require exactly one current occurrence, including common cookies and matching jar entries.
+
+An edit overlays that request's live session without writing the override to the shared jar or changing client defaults. Unrelated cookies are retained, and response `Set-Cookie` updates still reach the actor's jar. The next request therefore uses the server's current session. Custom HTTP transports and dump configuration are preserved; per-request adapter resources are cleaned up.
+
+Explicit cookie edits are visible as a Cookie header before final hooks. Other automatic jar cookies remain transport-supplied; a hook signing an entire Cookie header must account for that distinction. Hooks may change or erase an edited value; proof checks every matching named cookie in the observed sent header, so restoration, duplication, or failed removal is inconclusive.
+
+Cookie lookup follows the executing Go HTTP client's Host semantics, including the [Go 1.26 change](https://github.com/golang/go/commit/69e82796322bbff60b522534a8a6eacb2bf1ebba). The module continues to support Go 1.24.
 
 ## Path segments
 

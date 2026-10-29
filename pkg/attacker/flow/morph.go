@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/kaitoz11/reqfuzzy/pkg/attacker"
+	"github.com/kaitoz11/reqfuzzy/pkg/attacker/cookiefield"
 	"github.com/kaitoz11/reqfuzzy/pkg/attacker/jsonutil"
 	"github.com/kaitoz11/reqfuzzy/pkg/attacker/urlform"
 	"github.com/tidwall/gjson"
@@ -34,6 +35,10 @@ func BuildMutation(spec MutationSpec) (Mutation, error) {
 		}
 	}
 	switch spec.Location {
+	case "cookie":
+		if err := cookiefield.Valid(spec.Path, ""); err != nil {
+			return nil, err
+		}
 	case "header":
 		if !httpguts.ValidHeaderFieldName(spec.Path) {
 			return nil, fmt.Errorf("invalid mutation header")
@@ -71,6 +76,11 @@ func BuildMutation(spec MutationSpec) (Mutation, error) {
 		}
 		if spec.Location == "header" && !httpguts.ValidHeaderFieldValue(payload.Text) {
 			return nil, fmt.Errorf("invalid mutation header value")
+		}
+		if spec.Location == "cookie" {
+			if err := cookiefield.Valid(spec.Path, payload.Text); err != nil {
+				return nil, err
+			}
 		}
 	}
 	return func(request attacker.Request, _ Variables) error {
@@ -181,6 +191,18 @@ func jsonMutationApplied(request attacker.Request, lookup string, expected []byt
 
 func existingValue(request attacker.Request, location, path string, uniqueString bool) (Value, error) {
 	switch location {
+	case "cookie":
+		values, err := request.CookieValues(path)
+		if err != nil {
+			return Value{}, err
+		}
+		if len(values) == 0 {
+			return Value{}, fmt.Errorf("mutation cookie does not exist")
+		}
+		if uniqueString && len(values) != 1 {
+			return Value{}, fmt.Errorf("append/prepend cannot target repeated cookie names")
+		}
+		return Value{Text: values[0]}, nil
 	case "path":
 		_, parts, index, err := pathAddress(request.RawURL, path)
 		if err != nil {
@@ -253,6 +275,8 @@ func existingValue(request attacker.Request, location, path string, uniqueString
 
 func removeValue(request attacker.Request, location, path string) error {
 	switch location {
+	case "cookie":
+		return request.RemoveCookieValue(path)
 	case "path":
 		updated, err := removePathSegment(request.RawURL, path)
 		if err != nil {

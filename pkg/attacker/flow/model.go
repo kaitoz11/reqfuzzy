@@ -26,7 +26,8 @@ type Binding struct {
 
 type Extraction struct {
 	Name     string `yaml:"name"`
-	JSONPath string `yaml:"json"`
+	JSONPath string `yaml:"json,omitempty"`
+	Cookie   string `yaml:"cookie,omitempty"`
 }
 
 // Value carries both the printable value and its exact JSON representation.

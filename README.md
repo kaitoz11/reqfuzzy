@@ -35,6 +35,6 @@ The example obtains a fresh token, signs the final request body, and reads back 
 
 Reusable test cases can set, remove, append, and prepend values, run downstream verification, evaluate explicit invariants, and record protected evidence for reconstruction. Start with the [stateful reference example](docs/journey-tests.md) to see secure rejection, an intentional balance bug, and invalid-session handling.
 
-Current inference covers JSON response scalars passed into path segments, headers, query values, JSON bodies, and URL-encoded form fields, including Bearer tokens. Short or ambiguous IDs can be bound explicitly. All five locations support set/remove/append/prepend mutations. The [Juice Shop checkout example](examples/juice-shop/README.md) demonstrates fresh accounts, dynamic path IDs, quantity mutation, persisted-order checks, and reconstruction against a pinned local application.
+Current inference covers JSON response scalars and named `Set-Cookie` values passed into path segments, headers, query values, JSON bodies, URL-encoded form fields, and request cookies. Short or ambiguous values can be bound explicitly. All six locations support set/remove/append/prepend mutations. The [Juice Shop checkout example](examples/juice-shop/README.md) demonstrates fresh accounts, dynamic path IDs, quantity mutation, persisted-order checks, and reconstruction against a pinned local application.
 
-Cookie/multipart inference, broader payload/template support, flexible flow control, and a visual dependency view remain separate increments.
+Multipart inference, broader payload/template support, flexible flow control, and a visual dependency view remain separate increments.

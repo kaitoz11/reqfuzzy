@@ -184,13 +184,9 @@ func (r Runner) Run(ctx context.Context, definition Flow, mutation *StepMutation
 			return failRun(result, step.ID, StatusError, fmt.Errorf("got HTTP %d, want %d", trace.StatusCode, *step.ExpectStatus))
 		}
 		for _, extraction := range step.Extract {
-			found := gjson.GetBytes(trace.ResponseBody, extraction.JSONPath)
-			if !found.Exists() || found.Type == gjson.JSON || found.Type == gjson.Null {
-				return failRun(result, step.ID, ExtractionError, fmt.Errorf("json path %q did not select a scalar", extraction.JSONPath))
-			}
-			value, err := ParseValue([]byte(found.Raw))
+			value, err := extractValue(trace, extraction)
 			if err != nil {
-				return failRun(result, step.ID, ExtractionError, fmt.Errorf("json path %q did not select a valid scalar", extraction.JSONPath))
+				return failRun(result, step.ID, ExtractionError, err)
 			}
 			result.Variables[extraction.Name] = value
 			trace.Extracted[extraction.Name] = value
@@ -263,6 +259,8 @@ func failRun(result RunResult, stepID string, kind ErrorKind, err error) (RunRes
 
 func bindValue(request attacker.Request, binding Binding, value Value) error {
 	switch binding.Location {
+	case "cookie":
+		return request.SetCookieValue(binding.Path, binding.Prefix+value.Text)
 	case "path":
 		updated, err := replacePathSegment(request.RawURL, binding.Path, binding.Prefix+value.Text)
 		if err != nil {

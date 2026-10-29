@@ -7,12 +7,13 @@ import (
 )
 
 type RequestSnapshot struct {
-	Method  string
-	RawURL  string
-	Host    string
-	Query   url.Values
-	Headers http.Header
-	Body    []byte
+	Method     string
+	RawURL     string
+	Host       string
+	Query      url.Values
+	Headers    http.Header
+	Body       []byte
+	BodySource string
 }
 
 type StepResult struct {

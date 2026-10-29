@@ -163,8 +163,9 @@ func (r Runner) Run(ctx context.Context, definition Flow, mutation *StepMutation
 			Extracted:       make(Variables),
 			MutationRequest: mutationRequest,
 		}
+		bodyTrace := recordBody(request)
 		response, err := client.SendRequest(request)
-		trace.SentRequest = sentSnapshot(request, response)
+		trace.SentRequest = sentSnapshot(request, response, bodyTrace)
 		if err != nil {
 			result.Steps = append(result.Steps, trace)
 			return failRun(result, step.ID, TransportError, err)
@@ -324,16 +325,17 @@ func snapshot(request attacker.Request) RequestSnapshot {
 		query[key] = append(query[key], values...)
 	}
 	return RequestSnapshot{
-		Method:  request.Method,
-		RawURL:  request.RawURL,
-		Host:    request.Headers.Get("Host"),
-		Query:   query,
-		Headers: request.Headers.Clone(),
-		Body:    append([]byte(nil), request.Body...),
+		Method:     request.Method,
+		RawURL:     request.RawURL,
+		Host:       request.Headers.Get("Host"),
+		Query:      query,
+		Headers:    request.Headers.Clone(),
+		Body:       append([]byte(nil), request.Body...),
+		BodySource: "prepared-cache",
 	}
 }
 
-func sentSnapshot(request attacker.Request, response attacker.Response) *RequestSnapshot {
+func sentSnapshot(request attacker.Request, response attacker.Response, bodyTrace *bodyRecorder) *RequestSnapshot {
 	raw := request.RawRequest
 	if response.Response != nil && response.Response.Response != nil && response.Response.Response.Request != nil {
 		raw = response.Response.Response.Request
@@ -344,5 +346,10 @@ func sentSnapshot(request attacker.Request, response attacker.Response) *Request
 	headers := raw.Header.Clone()
 	delete(headers, req.HeaderOderKey)
 	delete(headers, req.PseudoHeaderOderKey)
-	return &RequestSnapshot{Method: raw.Method, RawURL: raw.URL.String(), Host: raw.Host, Query: raw.URL.Query(), Headers: headers, Body: append([]byte(nil), request.Body...)}
+	body, known := bodyTrace.snapshot(raw, response.Response != nil && response.Response.Response != nil)
+	source := "captured"
+	if !known {
+		source = "unavailable"
+	}
+	return &RequestSnapshot{Method: raw.Method, RawURL: raw.URL.String(), Host: raw.Host, Query: raw.URL.Query(), Headers: headers, Body: body, BodySource: source}
 }

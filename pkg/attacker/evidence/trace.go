@@ -18,18 +18,20 @@ import (
 )
 
 type bodyEvidence struct {
-	SHA256   string          `json:"sha256"`
-	Size     int             `json:"size"`
-	Encoding string          `json:"encoding,omitempty"`
-	Data     json.RawMessage `json:"data,omitempty"`
-	Omitted  bool            `json:"omitted,omitempty"`
+	SHA256      string          `json:"sha256,omitempty"`
+	Size        *int            `json:"size,omitempty"`
+	Encoding    string          `json:"encoding,omitempty"`
+	Data        json.RawMessage `json:"data,omitempty"`
+	Omitted     bool            `json:"omitted,omitempty"`
+	Unavailable bool            `json:"unavailable,omitempty"`
 }
 type requestEvidence struct {
-	Method  string       `json:"method"`
-	URL     string       `json:"url"`
-	Host    string       `json:"host"`
-	Headers http.Header  `json:"headers"`
-	Body    bodyEvidence `json:"body"`
+	Method     string       `json:"method"`
+	URL        string       `json:"url"`
+	Host       string       `json:"host"`
+	Headers    http.Header  `json:"headers"`
+	Body       bodyEvidence `json:"body"`
+	BodySource string       `json:"body_source,omitempty"`
 }
 type responseEvidence struct {
 	Status  int          `json:"status"`
@@ -105,7 +107,8 @@ func (s *Store) url(raw string) string {
 
 func (s *Store) body(raw []byte) bodyEvidence {
 	digest := sha256.Sum256(raw)
-	result := bodyEvidence{SHA256: hex.EncodeToString(digest[:]), Size: len(raw)}
+	size := len(raw)
+	result := bodyEvidence{SHA256: hex.EncodeToString(digest[:]), Size: &size}
 	if s.sensitive {
 		result.Encoding = "base64"
 		result.Data, _ = json.Marshal(base64.StdEncoding.EncodeToString(raw))
@@ -156,7 +159,11 @@ func redactKeys(value any) {
 	}
 }
 func (s *Store) request(request flow.RequestSnapshot) requestEvidence {
-	return requestEvidence{Method: request.Method, URL: s.url(request.RawURL), Host: request.Host, Headers: s.headers(request.Headers), Body: s.body(request.Body)}
+	body := s.body(request.Body)
+	if request.BodySource == "unavailable" {
+		body = bodyEvidence{Omitted: true, Unavailable: true}
+	}
+	return requestEvidence{Method: request.Method, URL: s.url(request.RawURL), Host: request.Host, Headers: s.headers(request.Headers), Body: body, BodySource: request.BodySource}
 }
 func names(values flow.Variables) []string {
 	keys := make([]string, 0, len(values))
@@ -169,7 +176,11 @@ func names(values flow.Variables) []string {
 func (s *Store) run(result flow.RunResult) runEvidence {
 	output := runEvidence{Name: result.FlowName, FailedStep: result.FailedStepID, Steps: []stepEvidence{}, Variables: names(result.Variables)}
 	for _, step := range result.Steps {
-		trace := stepEvidence{ID: step.StepID, Actor: step.Actor, Prepared: s.request(step.Request), Response: responseEvidence{Status: step.StatusCode, Headers: s.headers(step.ResponseHeaders), Body: s.body(step.ResponseBody)}, Extracted: names(step.Extracted)}
+		responseBody := s.body(step.ResponseBody)
+		if step.StatusCode == 0 {
+			responseBody = bodyEvidence{Unavailable: true, Omitted: true}
+		}
+		trace := stepEvidence{ID: step.StepID, Actor: step.Actor, Prepared: s.request(step.Request), Response: responseEvidence{Status: step.StatusCode, Headers: s.headers(step.ResponseHeaders), Body: responseBody}, Extracted: names(step.Extracted)}
 		if step.SentRequest != nil {
 			sent := s.request(*step.SentRequest)
 			trace.Sent = &sent

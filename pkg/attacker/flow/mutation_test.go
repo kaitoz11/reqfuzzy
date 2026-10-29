@@ -98,3 +98,11 @@ func TestNormalHTTPMutationRejectsManagedFramingAndHostRemoval(t *testing.T) {
 		}
 	}
 }
+
+func TestMutationRejectsUnsupportedSelectorSyntax(t *testing.T) {
+	for _, path := range []string{"items|0.amount", "items.#.amount", "items.@this.amount"} {
+		if _, err := flow.BuildMutation(flow.MutationSpec{Action: "set", Location: "json", Path: path, Value: []byte("-10")}); err == nil {
+			t.Fatalf("unsupported selector accepted: %s", path)
+		}
+	}
+}

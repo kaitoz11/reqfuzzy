@@ -1,6 +1,7 @@
 package flow
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/url"
@@ -21,6 +22,14 @@ type MutationSpec struct {
 func BuildMutation(spec MutationSpec) (Mutation, error) {
 	if spec.Path == "" {
 		return nil, fmt.Errorf("mutation path is required")
+	}
+	lookup := spec.Path
+	if spec.Location == "json" {
+		var err error
+		lookup, err = jsonutil.MutationLookupPath(spec.Path)
+		if err != nil {
+			return nil, err
+		}
 	}
 	switch spec.Location {
 	case "header":
@@ -65,14 +74,26 @@ func BuildMutation(spec MutationSpec) (Mutation, error) {
 			}
 		}
 		if spec.Action == "set" {
-			return bindValue(request, Binding{Location: spec.Location, Path: spec.Path}, payload)
+			if err := bindValue(request, Binding{Location: spec.Location, Path: spec.Path}, payload); err != nil {
+				return err
+			}
+			if spec.Location == "json" {
+				return jsonMutationApplied(request, lookup, payload.RawJSON, false)
+			}
+			return nil
 		}
-		current, err := existingValue(request, spec.Location, spec.Path, spec.Action != "remove")
+		current, err := existingValue(request, spec.Location, lookup, spec.Action != "remove")
 		if err != nil {
 			return err
 		}
 		if spec.Action == "remove" {
-			return removeValue(request, spec.Location, spec.Path)
+			if err := removeValue(request, spec.Location, spec.Path); err != nil {
+				return err
+			}
+			if spec.Location == "json" {
+				return jsonMutationApplied(request, lookup, nil, true)
+			}
+			return nil
 		}
 		text := current.Text + payload.Text
 		if spec.Action == "prepend" {
@@ -83,8 +104,28 @@ func BuildMutation(spec MutationSpec) (Mutation, error) {
 		if spec.Location == "header" && !httpguts.ValidHeaderFieldValue(text) {
 			return fmt.Errorf("invalid combined header value")
 		}
-		return bindValue(request, Binding{Location: spec.Location, Path: spec.Path}, value)
+		if err := bindValue(request, Binding{Location: spec.Location, Path: spec.Path}, value); err != nil {
+			return err
+		}
+		if spec.Location == "json" {
+			return jsonMutationApplied(request, lookup, value.RawJSON, false)
+		}
+		return nil
 	}, nil
+}
+
+func jsonMutationApplied(request attacker.Request, lookup string, expected []byte, remove bool) error {
+	found := gjson.GetBytes(request.Body, lookup)
+	if remove {
+		if found.Exists() {
+			return fmt.Errorf("JSON removal did not apply at the requested field")
+		}
+		return nil
+	}
+	if !found.Exists() || !bytes.Equal([]byte(found.Raw), expected) {
+		return fmt.Errorf("JSON mutation did not apply at the requested field")
+	}
+	return nil
 }
 
 func existingValue(request attacker.Request, location, path string, uniqueString bool) (Value, error) {

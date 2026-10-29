@@ -157,3 +157,37 @@ func TestPipeRedactionCannotSilentlyLeaveOriginalValue(t *testing.T) {
 		}
 	}
 }
+
+func TestUnavailableSentBodyIsNotWrittenAsCachedBytes(t *testing.T) {
+	store, err := evidence.NewStore(filepath.Join(t.TempDir(), "run"), evidence.Recipe{FormatVersion: 1, TestPath: "tests.yaml", Inputs: map[string]string{"test": strings.Repeat("a", 64)}, Cases: []string{"one"}, BaseURL: "http://reference.test"}, campaign.Redaction{}, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sent := flow.RequestSnapshot{Body: []byte("cached-secret"), BodySource: "unavailable"}
+	trial := campaign.Trial{ID: "one", Flow: flow.RunResult{Steps: []flow.StepResult{{StepID: "one", StatusCode: 200, SentRequest: &sent}}}}
+	if err := store.Record(trial); err != nil {
+		t.Fatal(err)
+	}
+	data, _ := os.ReadFile(filepath.Join(store.Directory(), "one.json"))
+	var artifact struct {
+		Flow struct {
+			Steps []struct {
+				Sent struct {
+					Body struct {
+						Unavailable bool            `json:"unavailable"`
+						Data        json.RawMessage `json:"data"`
+						SHA         string          `json:"sha256"`
+						Size        *int            `json:"size"`
+					} `json:"body"`
+				} `json:"sent"`
+			} `json:"steps"`
+		} `json:"flow"`
+	}
+	if err := json.Unmarshal(data, &artifact); err != nil {
+		t.Fatal(err)
+	}
+	body := artifact.Flow.Steps[0].Sent.Body
+	if !body.Unavailable || len(body.Data) != 0 || body.SHA != "" || body.Size != nil {
+		t.Fatalf("unavailable evidence invented a body: %s", data)
+	}
+}

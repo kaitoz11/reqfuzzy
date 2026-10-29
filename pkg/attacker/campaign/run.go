@@ -74,7 +74,7 @@ func Run(ctx context.Context, runner flow.Runner, main flow.Flow, verification *
 	for index, candidate := range spec.Cases {
 		mutations[index], _ = flow.BuildMutation(flow.MutationSpec{Action: candidate.Action, Location: spec.Target.Location, Path: spec.Target.Path, Value: candidate.Value})
 	}
-	baseline := executeTrial(ctx, runner, main, verification, spec, "baseline", nil, true)
+	baseline := executeTrial(ctx, runner, main, verification, spec, "baseline", nil, true, "")
 	if baseline.Outcome == Pass {
 		baseline.Checks = evaluate(spec.Checks, baseline, baseline)
 		baseline.Outcome = checksOutcome(baseline.Checks)
@@ -102,7 +102,7 @@ func Run(ctx context.Context, runner flow.Runner, main flow.Flow, verification *
 			result.Outcome = Inconclusive
 			return result, err
 		}
-		trial := executeTrial(ctx, runner, main, verification, spec, candidate.ID, &flow.StepMutation{StepID: spec.Target.Step, Apply: mutations[index]}, false)
+		trial := executeTrial(ctx, runner, main, verification, spec, candidate.ID, &flow.StepMutation{StepID: spec.Target.Step, Apply: mutations[index]}, false, candidate.Action)
 		if trial.Outcome == Pass {
 			trial.Checks = evaluate(spec.Checks, trial, baseline)
 			trial.Outcome = checksOutcome(trial.Checks)
@@ -127,7 +127,7 @@ func Run(ctx context.Context, runner flow.Runner, main flow.Flow, verification *
 	return result, nil
 }
 
-func executeTrial(ctx context.Context, runner flow.Runner, main flow.Flow, verification *flow.Flow, spec Spec, id string, mutation *flow.StepMutation, baseline bool) Trial {
+func executeTrial(ctx context.Context, runner flow.Runner, main flow.Flow, verification *flow.Flow, spec Spec, id string, mutation *flow.StepMutation, baseline bool, action string) Trial {
 	trial := Trial{ID: id, Outcome: Inconclusive, Checks: []CheckResult{}}
 	// A trial has one fresh actor cache; main and verification reuse its sessions.
 	original := runner.NewClient
@@ -177,7 +177,7 @@ func executeTrial(ctx context.Context, runner flow.Runner, main flow.Flow, verif
 		executionError(&trial, runErr)
 	}
 	if mutation != nil {
-		proof, ok := mutationSurvived(trial.Flow, spec.Target)
+		proof, ok := mutationSurvived(trial.Flow, spec.Target, action)
 		trial.MutationProof = proof
 		if !ok {
 			trial.Reason = "target mutation was overwritten or its sent value cannot be verified"

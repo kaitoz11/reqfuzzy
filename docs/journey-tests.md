@@ -41,6 +41,8 @@ A version-1 `tests.yaml` file belongs inside the project. `target` names an exis
 
 Ambiguous duplicate-key JSON is rejected for structural mutations. Explicit raw Go hooks remain available for deliberate parameter-pollution experiments.
 
+JSON mutation addresses use literal fields and array indices, with escaping for special key characters. SJSON forced-object-key syntax such as `:0` is resolved consistently for mutation and proof. Query selectors, modifiers, and wildcard expressions are rejected as mutation addresses. Each mutation validates its immediate postcondition before sending, so a library no-op cannot silently become a passing case. Check selectors remain GJSON expressions.
+
 Target initialization occurs before mutation, so an explicit Host set reaches the server while the selected network origin stays fixed. Host removal and Content-Length/Transfer-Encoding mutations are rejected because the normal HTTP transport manages those fields. A case also checks that the selected mutation survives final hooks and reaches the sent application request. If a refresh/signing hook erases the mutation, the result is inconclusive rather than a misleading pass.
 
 For an intentional opaque body transformation, such as target-specific encryption, set `target.allow_transform: true`. Artifacts then record `mutation_proof: transformed` and the pre-hook mutation stage. The tool cannot automatically prove logical equivalence through arbitrary encryption; use independent downstream checks to establish the effect. Ordinary signing hooks that leave the target field intact need no opt-in.
@@ -76,7 +78,7 @@ An assessed case is `pass` when every check passes and `fail` when a configured 
 - `baseline.json` and each `<case>.json` record the completed trial, pre-hook mutation/prepared/sent request metadata, response metadata, body sizes/hashes, and check outcomes.
 - `result.json` records the aggregate result and interruption status.
 
-Each trial is written before the next begins. A baseline failure, cancellation, or write failure leaves partial evidence and stops the relevant work. Sent metadata includes jar cookies and actual URLs when supplied by the HTTP client, with its internal controls removed. Body hashes describe the original bytes; default JSON views are redacted and reserialized. This is application HTTP evidence, not a TCP/TLS or framing capture.
+Each trial is written before the next begins. A baseline failure, cancellation, or write failure leaves partial evidence and stops the relevant work. Sent metadata includes jar cookies and actual URLs when supplied by the HTTP client, with its internal controls removed. Body tracing records bytes consumed by the transport, up to 16 MiB; replaced middleware suppliers, multiple consumed sources, and incomplete/over-limit bodies are marked unavailable. An unavailable body has no invented hash or size, even in sensitive mode. Prepared-cache snapshots are labeled separately. Body hashes describe the original captured bytes; default JSON views are redacted and reserialized. This is application HTTP evidence, not a TCP/TLS or framing capture.
 
 Default artifacts redact common credential, API-key, and signature headers and secret-like JSON/query keys; non-JSON and ambiguous bodies are omitted while retaining hashes. A configured matching path whose replacement cannot be verified also causes that body to be omitted. Add target-specific policy when needed:
 

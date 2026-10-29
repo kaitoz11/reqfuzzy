@@ -19,10 +19,17 @@ type selection struct {
 func selectRequest(message flow.RequestSnapshot, target Target) (selection, error) {
 	switch target.Location {
 	case "json":
+		if message.BodySource == "unavailable" {
+			return selection{}, fmt.Errorf("sent body is unavailable")
+		}
+		lookup, err := jsonutil.MutationLookupPath(target.Path)
+		if err != nil {
+			return selection{}, err
+		}
 		if err := jsonutil.ValidateUnique(message.Body); err != nil {
 			return selection{}, err
 		}
-		found := gjson.GetBytes(message.Body, target.Path)
+		found := gjson.GetBytes(message.Body, lookup)
 		if !found.Exists() {
 			return selection{}, nil
 		}
@@ -50,7 +57,7 @@ func selectRequest(message flow.RequestSnapshot, target Target) (selection, erro
 	return selection{}, fmt.Errorf("unsupported mutation target")
 }
 
-func mutationSurvived(result flow.RunResult, target Target) (string, bool) {
+func mutationSurvived(result flow.RunResult, target Target, action string) (string, bool) {
 	for _, step := range result.Steps {
 		if step.StepID != target.Step {
 			continue
@@ -73,7 +80,10 @@ func mutationSurvived(result flow.RunResult, target Target) (string, bool) {
 			return "overwritten", false
 		}
 		if !expected.exists {
-			return "verified", true
+			if action == "remove" {
+				return "verified", true
+			}
+			return "unverified", false
 		}
 		equal := bytes.Equal(expected.raw, actual.raw)
 		if target.Location == "json" {

@@ -36,6 +36,6 @@ REQFUZZY_JUICE_SHOP_URL=http://127.0.0.1:3000 \
 
 Set `REQFUZZY_ACCEPTANCE_OUT` to a new absolute directory to retain the private HAR, imported project, campaign, and replay. The test only accepts a literal `http://127.0.0.1:PORT` target and refuses redirects during capture. It is skipped by normal test runs and never starts Docker itself.
 
-HAR import infers the four Bearer-token links in this capture. Item/basket IDs in paths require the reviewed `item-path` and `checkout-path` scripts; short numeric IDs are outside conservative inference. These hooks change only the URL, leaving the quantity mutation intact. `flow show` cannot yet display these script-level dependencies as inferred edges.
+HAR import infers the four Bearer-token links in this capture. Short numeric IDs are outside conservative inference, so the reviewed flow explicitly binds item/basket IDs with `location: path, path: "2"`. These dependencies appear in `flow show`, and the quantity mutation remains independent of path binding. Longer unique IDs can also be inferred from a capture. The fresh-account hook remains responsible for generating a new email.
 
 The application behavior is defined in the pinned upstream [basket-item routes](https://github.com/juice-shop/juice-shop/blob/v20.3.0/routes/basketItems.ts), [checkout route](https://github.com/juice-shop/juice-shop/blob/v20.3.0/routes/order.ts), and [order-history route](https://github.com/juice-shop/juice-shop/blob/v20.3.0/routes/orderHistory.ts).

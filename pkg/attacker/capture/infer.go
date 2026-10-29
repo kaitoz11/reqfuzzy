@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/url"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/kaitoz11/reqfuzzy/pkg/attacker/flow"
@@ -134,6 +135,15 @@ func requestValues(exchange Exchange) ([]requestValue, error) {
 		return nil, fmt.Errorf("parse request URL: %w", err)
 	}
 	var values []requestValue
+	for index, segment := range strings.Split(strings.TrimPrefix(requestURL.EscapedPath(), "/"), "/") {
+		value, err := url.PathUnescape(segment)
+		if err != nil {
+			return nil, fmt.Errorf("decode request path segment")
+		}
+		if value != "" {
+			values = append(values, requestValue{Location: "path", Path: strconv.Itoa(index), Text: value})
+		}
+	}
 	query := requestURL.Query()
 	keys := make([]string, 0, len(query))
 	for key := range query {

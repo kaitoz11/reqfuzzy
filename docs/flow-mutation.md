@@ -65,6 +65,19 @@ steps:
 
 Header bindings replace any captured header with the same name regardless of case. Query bindings replace all captured values for that key while keeping unrelated query entries and their original encodings. The runner drops captured `Cookie` headers so each actor's client jar supplies cookies issued during the current run. If a flow starts with an existing session, configure that actor's client or a request hook to provide it.
 
+## Bind dynamic path IDs
+
+For a captured target `/api/items/0`, bind a freshly extracted ID to segment 2:
+
+```yaml
+bind:
+  - {location: path, path: "2", variable: item_id}
+```
+
+Indices are canonical nonnegative integers encoded as strings. Counting starts after the initial slash; internal and trailing empty slots still count. Bounds are checked against the captured path during preflight, before any client is created or prerequisite is sent. Paths are relative to the configured target origin.
+
+The value's exact text, including an optional `prefix`, is escaped as one segment. An ID containing `/`, `?`, or `#` cannot insert another segment, query, or fragment. Dot-only values are percent-escaped; other segments retain their existing escapes and the raw query is preserved. A binding that would create a leading `//` is rejected. Bindings run before mutations and final hooks, and appear as edges in `flow show`. Path binding does not add path-targeted mutation actions; current mutation targets remain header, query, and JSON.
+
 ## Run a comparison
 
 The Go program below assumes a local API at `http://127.0.0.1:8080`. The `sign` hook runs after the mutation, so it hashes the exact body being sent.

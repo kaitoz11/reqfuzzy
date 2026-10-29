@@ -27,12 +27,12 @@ steps:
     expect_status: 200
     bind:
       - {location: header, path: Authorization, variable: token, prefix: "Bearer "}
-    before_send: item-path
+      - {location: path, path: "2", variable: item_id}
   - id: checkout
     request: checkout
     expect_status: 200
     bind:
       - {location: header, path: Authorization, variable: token, prefix: "Bearer "}
-    before_send: checkout-path
+      - {location: path, path: "2", variable: basket_id}
     extract:
       - {name: order_id, json: orderConfirmation}

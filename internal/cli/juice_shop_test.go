@@ -152,8 +152,8 @@ func TestJuiceShopCapturedCheckoutAndReplay(t *testing.T) {
 	if err := yaml.Unmarshal(data, &manifest); err != nil {
 		t.Fatal(err)
 	}
-	// Keep captured requests; replace the draft with reviewed dependencies and
-	// explicit hooks for IDs in URL paths (outside current inference support).
+	// Keep captured requests; replace the draft with reviewed dependencies.
+	// Short numeric path IDs need explicit bindings under conservative inference.
 	names := []string{"signup", "login", "add", "update", "checkout", "history"}
 	for i, step := range imported.Steps {
 		old := filepath.Join(project, manifest.Requests[step.Request])
@@ -225,4 +225,20 @@ func TestJuiceShopCapturedCheckoutAndReplay(t *testing.T) {
 		t.Fatal("replay did not reproduce the persisted negative order")
 	}
 	t.Log("captured 6 requests; inferred 4 authorization links; baseline pass; negative fail (-19.90); zero pass; fresh-state replay fail (-19.90)")
+}
+
+func TestFlowShowIncludesAuthoredPathDependencies(t *testing.T) {
+	code, out, stderr := call("flow", "show", "--project", filepath.Join("..", "..", "examples", "juice-shop"), "--json")
+	if code != 0 || stderr != "" {
+		t.Fatalf("show code=%d out=%s err=%s", code, out, stderr)
+	}
+	edges := map[string]string{}
+	for _, edge := range gjson.Get(out, "result.edges").Array() {
+		if edge.Get("location").String() == "path" {
+			edges[edge.Get("from").String()+"->"+edge.Get("to").String()] = edge.Get("variable").String() + ":" + edge.Get("path").String()
+		}
+	}
+	if len(edges) != 2 || edges["add->update"] != "item_id:2" || edges["login->checkout"] != "basket_id:2" {
+		t.Fatalf("path dependency edges=%v", edges)
+	}
 }

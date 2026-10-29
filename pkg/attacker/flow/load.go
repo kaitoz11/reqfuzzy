@@ -82,9 +82,14 @@ func ValidateWithVariables(candidate Flow, initial Variables) error {
 				return fmt.Errorf("flow step %q: binding path and variable are required", step.ID)
 			}
 			switch binding.Location {
-			case "header", "query", "json":
+			case "header", "query", "json", "path":
 			default:
 				return fmt.Errorf("flow step %q: unsupported binding location %q", step.ID, binding.Location)
+			}
+			if binding.Location == "path" {
+				if _, err := pathIndex(binding.Path); err != nil {
+					return fmt.Errorf("flow step %q: %w", step.ID, err)
+				}
 			}
 			if binding.Location == "json" && binding.Prefix != "" {
 				return fmt.Errorf("flow step %q: JSON binding cannot use prefix", step.ID)

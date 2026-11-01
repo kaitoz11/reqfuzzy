@@ -6,15 +6,19 @@ type Flow struct {
 }
 
 type Step struct {
-	ID            string       `yaml:"id"`
-	Request       string       `yaml:"request"`
-	Actor         string       `yaml:"actor,omitempty"`
-	Bind          []Binding    `yaml:"bind,omitempty"`
-	Extract       []Extraction `yaml:"extract,omitempty"`
-	BeforeSend    string       `yaml:"before_send,omitempty"`
-	AfterResponse string       `yaml:"after_response,omitempty"`
-	Provides      []string     `yaml:"provides,omitempty"`
-	ExpectStatus  *int         `yaml:"expect_status,omitempty"`
+	ID             string       `yaml:"id"`
+	Request        string       `yaml:"request"`
+	Actor          string       `yaml:"actor,omitempty"`
+	Bind           []Binding    `yaml:"bind,omitempty"`
+	Extract        []Extraction `yaml:"extract,omitempty"`
+	BeforeSend     string       `yaml:"before_send,omitempty"`
+	AfterResponse  string       `yaml:"after_response,omitempty"`
+	Provides       []string     `yaml:"provides,omitempty"`
+	ExpectStatus   *int         `yaml:"expect_status,omitempty"`
+	ExpectStatuses []int        `yaml:"expect_statuses,omitempty"`
+	MaxVisits      *int         `yaml:"max_visits,omitempty"`
+	Next           *string      `yaml:"next,omitempty"`
+	Routes         []string     `yaml:"routes,omitempty"`
 }
 
 type Binding struct {
@@ -28,6 +32,8 @@ type Extraction struct {
 	Name     string `yaml:"name"`
 	JSONPath string `yaml:"json,omitempty"`
 	Cookie   string `yaml:"cookie,omitempty"`
+	Optional bool   `yaml:"optional,omitempty"`
+	OnStatus []int  `yaml:"on_status,omitempty"`
 }
 
 // Value carries both the printable value and its exact JSON representation.

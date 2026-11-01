@@ -28,6 +28,7 @@ The example obtains a fresh token, signs the final request body, and reads back 
 
 - [CLI commands and projects](docs/cli.md)
 - [Visual flow mapping and authoring](docs/flow-map.md)
+- [Conditional journeys and bounded repetition](docs/flow-control.md)
 - [JavaScript request and response hooks](docs/script-hooks.md)
 - [Stateful mutation tests and reproducible evidence](docs/journey-tests.md)
 - [HAR import and flow inference](docs/har-flow-inference.md)
@@ -40,4 +41,4 @@ Current inference covers JSON response scalars and named `Set-Cookie` values pas
 
 Create an offline visual editor with `bin/reqfuzzy flow map --project examples/juice-shop --test tests.yaml --out .reqfuzzy/checkout-map.html`. Inspect inferred/authored dependencies, edit the journey and verification flows, and export definitions without sending requests.
 
-Multipart inference, broader payload/template support, and flexible flow control remain separate increments.
+Response scripts can now choose declared next steps for session recovery or polling, bounded by per-step visit limits and request budgets. The [recovery example](examples/session-recovery/README.md) refreshes token/key state and re-signs each mutated attempt. Multipart inference and broader payload/template support remain separate increments.

@@ -17,8 +17,10 @@ const cli = (...args) => JSON.parse(execFileSync(binary, [...args, '--json'], { 
 const reference = path.join(root, 'examples/stateful-tests');
 const referenceMap = path.join(artifacts, 'reference.html');
 const juiceMap = path.join(artifacts, 'juice-shop.html');
+const recoveryMap = path.join(artifacts, 'recovery.html');
 cli('flow', 'map', '--project', reference, '--test', 'tests.yaml', '--out', referenceMap);
 cli('flow', 'map', '--project', path.join(root, 'examples/juice-shop'), '--test', 'tests.yaml', '--out', juiceMap);
+cli('flow', 'map', '--project', path.join(root, 'examples/session-recovery'), '--test', 'tests.yaml', '--out', recoveryMap);
 
 const browser = await chromium.launch({ headless: true, executablePath: process.env.REQFUZZY_BROWSER || undefined });
 try {
@@ -113,6 +115,42 @@ try {
   await page.locator('#fit').click();
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'narrow view has no document overflow');
   await page.screenshot({ path: path.join(artifacts, 'juice-shop-narrow.png'), fullPage: true });
+
+  await page.setViewportSize({width:1560,height:1000});
+  await page.goto(pathToFileURL(recoveryMap).href);
+  await page.waitForSelector('g.node');
+  assert.equal(await page.locator('g.node').count(),5);
+  assert.equal(await page.locator('g.control-edge').count(),3);
+  await node('Journey','transfer').click();
+  assert.equal(await field('flow:2-max-visits').inputValue(),'2');
+  assert.equal(await field('flow:2-next').inputValue(),'end');
+  assert.equal(await field('flow:2-statuses').inputValue(),'201, 401');
+  assert.equal(await field('flow:2-extract-0-on-status').inputValue(),'201');
+  await field('flow:2-statuses').fill('');
+  await field('flow:2-statuses').pressSequentially('201, 401');
+  assert.equal(await field('flow:2-statuses').inputValue(),'201, 401','status delimiters must survive normal typing');
+  await field('flow:2-extract-0-on-status').fill('');
+  await field('flow:2-extract-0-on-status').pressSequentially('201, 200');
+  assert.equal(await field('flow:2-extract-0-on-status').inputValue(),'201, 200','extraction gate delimiters must survive normal typing');
+  await field('flow:2-max-visits').fill('0');
+  assert.equal(await isExportable(),false);
+  await field('flow:2-max-visits').fill('3');
+  await field('flow:2-extract-0-optional').check();
+  assert.equal(await isExportable(),true);
+  const recoveryDownloadEvent=page.waitForEvent('download');await page.locator('#download').click();
+  const recoveryDownload=await recoveryDownloadEvent;const recoveryExport=path.join(artifacts,'recovery-edited.yaml');await recoveryDownload.saveAs(recoveryExport);
+  const recoveryDefinition=JSON.parse(await fs.readFile(recoveryExport,'utf8'));
+  assert.equal(recoveryDefinition.steps[2].max_visits,3);
+  assert.equal(recoveryDefinition.steps[2].next,'');
+  assert.deepEqual(recoveryDefinition.steps[2].routes,['refresh']);
+  assert.deepEqual(recoveryDefinition.steps[2].expect_statuses,[201,401]);
+  assert.deepEqual(recoveryDefinition.steps[2].extract[0].on_status,[201,200]);
+  assert.equal(recoveryDefinition.steps[2].extract[0].optional,true);
+  await node('Journey','refresh').click();await field('flow:3-id').fill('renamed_refresh');
+  assert.equal(await isExportable(),false,'broken control destination must block export');
+  await page.locator('#undo').click();assert.equal(await isExportable(),true);
+  await node('Journey','transfer').click();
+  await page.screenshot({path:path.join(artifacts,'recovery-desktop.png'),fullPage:true});
 
   const payload = JSON.parse((await fs.readFile(referenceMap, 'utf8')).match(/<script id="project-data" type="application\/json">([\s\S]*?)<\/script>/)[1]);
   const hostileProject = path.join(artifacts, 'hostile-project');

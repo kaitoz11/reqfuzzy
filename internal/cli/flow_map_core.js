@@ -7,7 +7,7 @@ var FlowMapCore = (function () {
   function filled(value) { return text(value) && value.trim().length > 0; }
   function list(value) { return Array.isArray(value) ? value : []; }
   function analyze(project) {
-    var nodes = [], edges = [], errors = [], sources = new Map(), phaseSteps = new Map();
+    var nodes = [], edges = [], controls = [], errors = [], sources = new Map(), phaseSteps = new Map(), requestBound = 0;
     var requests = new Set(list(project.requests));
     function error(key, message) { errors.push({ key: key || "", message: message }); }
     list(project.flows).forEach(function (phase) {
@@ -26,6 +26,13 @@ var FlowMapCore = (function () {
         if (!requests.has(step.request)) error(key, label + ": choose a registered request");
         if (step.actor !== undefined && !text(step.actor)) error(key, label + ": actor must be text");
         if (step.expect_status !== undefined && (typeof step.expect_status !== "number" || !Number.isInteger(step.expect_status) || step.expect_status < 100 || step.expect_status > 599)) error(key, label + ": expected status must be an integer from 100 to 599");
+        function statuses(value, name) {
+          if (!Array.isArray(value) || !value.length || value.some(function (status) { return !Number.isInteger(status) || status < 100 || status > 599; }) || new Set(value).size !== value.length) error(key, label + ": " + name + " needs unique HTTP codes");
+        }
+        if (step.expect_statuses !== undefined) { statuses(step.expect_statuses, "Expected statuses"); if (step.expect_status !== undefined) error(key, label + ": choose one status or a status set"); }
+        var limit = step.max_visits === undefined ? 1 : step.max_visits;
+        if (!Number.isInteger(limit) || limit < 1 || limit > 1000000) error(key, label + ": max visits must be 1 through 1000000");
+        else requestBound += limit;
         ["before_send", "after_response"].forEach(function (field) { if (step[field] !== undefined && !text(step[field])) error(key, label + ": hook names must be text"); });
         if (step.bind !== undefined && !Array.isArray(step.bind)) error(key, label + ": bindings must be a list");
         list(step.bind).forEach(function (binding, bindingIndex) {
@@ -48,6 +55,8 @@ var FlowMapCore = (function () {
           var json = text(extraction.json) && extraction.json.length > 0, cookie = text(extraction.cookie) && extraction.cookie.length > 0;
           if (json === cookie) error(key, label + ": extraction needs exactly one JSON or cookie selector");
           if (cookie && !cookieName.test(extraction.cookie)) error(key, label + ": invalid response cookie name");
+          if (extraction.optional !== undefined && typeof extraction.optional !== "boolean") error(key, label + ": optional must be true or false");
+          if (extraction.on_status !== undefined) statuses(extraction.on_status, "Extraction status gate");
           declare(extraction.name, cookie ? "cookie:" + extraction.cookie : "json:" + (extraction.json || ""));
         });
         if (step.provides !== undefined && !Array.isArray(step.provides)) error(key, label + ": provided variables must be a list");
@@ -55,6 +64,24 @@ var FlowMapCore = (function () {
         list(step.provides).forEach(function (name) { declare(name, "after_response"); });
       });
     });
+    list(project.flows).forEach(function (phase) {
+      var steps = list(phase.definition.steps), ids = new Map();
+      steps.forEach(function (step, index) { ids.set(step.id, phase.key + ":" + index); });
+      steps.forEach(function (step, index) {
+        var key = phase.key + ":" + index;
+        function connect(target, kind, routeIndex) {
+          if (!text(target) || (target !== "" && !ids.has(target))) { error(key, phase.label + " / " + step.id + ": next destination does not exist"); return; }
+          controls.push({ from: key, to: target === "" ? "" : ids.get(target), target: target, kind: kind, routeIndex: routeIndex });
+        }
+        if (Object.prototype.hasOwnProperty.call(step, "next")) connect(step.next, "next");
+        else connect(index + 1 < steps.length ? steps[index + 1].id : "", "order");
+        if (step.routes !== undefined && !Array.isArray(step.routes)) error(key, phase.label + " / " + step.id + ": routes must be a list");
+        var seen = new Set();
+        list(step.routes).forEach(function (target, routeIndex) { if (seen.has(target)) error(key, phase.label + " / " + step.id + ": duplicate route"); seen.add(target); connect(target, "route", routeIndex); });
+      });
+    });
+    var verification = list(project.flows).find(function (phase) { return phase.key === "verify" && list(phase.definition.steps).length; });
+    if (verification) controls.forEach(function (control) { if (!control.to && control.from.indexOf("flow:") === 0) { control.to = "verify:0"; control.via = control.kind; control.kind = "verify"; } });
     if (project.campaign) {
       var campaign = project.campaign, target = campaign.target || {}, main = phaseSteps.get("flow") || new Set();
       if (!main.has(target.step)) error("", "Campaign target step " + target.step + " must remain in the journey");
@@ -64,7 +91,7 @@ var FlowMapCore = (function () {
         if (check.variable && !sources.has(check.variable)) error("", "Campaign check " + check.id + " refers to missing variable " + check.variable);
       });
     }
-    return { nodes: nodes, edges: edges, errors: errors, sources: sources, valid: errors.length === 0 };
+    return { nodes: nodes, edges: edges, controls: controls, requestBound: requestBound, errors: errors, sources: sources, valid: errors.length === 0 };
   }
   function exportFlow(project, key) {
     var analysis = analyze(project);

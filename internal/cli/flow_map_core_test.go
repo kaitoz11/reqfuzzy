@@ -92,3 +92,26 @@ func TestFlowMapEditedExportRoundTripsExactStringsThroughGoLoader(t *testing.T) 
 		t.Fatal(err)
 	}
 }
+
+func TestFlowMapControlsPreserveBranchesLimitsAndExtractionGates(t *testing.T) {
+	vm := mapVM(t)
+	result := mapEval(t, vm, `var steps=project.flows[0].definition.steps;var target=steps[1];delete target.expect_status;target.expect_statuses=[201,401];target.max_visits=2;target.next="";target.routes=["refresh"];target.extract=[{name:"result",json:"result",optional:true,on_status:[201]}];steps.push({id:"refresh",request:"login",next:"transfer"});var a=FlowMapCore.analyze(project);JSON.stringify({valid:a.valid,controls:a.controls||[],bound:a.requestBound});`)
+	if !gjson.Get(result, "valid").Bool() || gjson.Get(result, "controls.#").Int() < 4 || gjson.Get(result, "bound").Int() != 5 {
+		t.Fatalf("control graph=%s", result)
+	}
+	encoded := mapEval(t, vm, `FlowMapCore.exportFlow(project,"flow");`)
+	definition, err := flow.LoadYAML([]byte(encoded))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if *definition.Steps[1].MaxVisits != 2 || *definition.Steps[1].Next != "" || definition.Steps[1].Routes[0] != "refresh" || !definition.Steps[1].Extract[0].Optional || definition.Steps[1].Extract[0].OnStatus[0] != 201 {
+		t.Fatal("control export lost configuration")
+	}
+	for _, edit := range []string{`target.max_visits=0;`, `target.routes=["missing"];`, `target.next="missing";`, `target.extract[0].on_status=[201,201];`} {
+		isolated := mapVM(t)
+		mapEval(t, isolated, `var target=project.flows[0].definition.steps[1];target.extract=[{name:"result",json:"result"}];`)
+		if mapEval(t, isolated, edit+`String(FlowMapCore.analyze(project).valid);`) != "false" {
+			t.Fatalf("invalid control edit accepted: %s", edit)
+		}
+	}
+}

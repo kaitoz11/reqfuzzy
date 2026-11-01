@@ -98,12 +98,13 @@ type Check struct {
 	Value    Scalar `yaml:"value,omitempty" json:"value,omitempty"`
 	Variable string `yaml:"variable,omitempty" json:"variable,omitempty"`
 	Baseline bool   `yaml:"baseline,omitempty" json:"baseline,omitempty"`
+	Visit    string `yaml:"visit,omitempty" json:"visit,omitempty"`
 }
 
 func (c *Check) UnmarshalYAML(node *yaml.Node) error {
 	type plain Check
 	var decoded plain
-	if err := recordFields(node, "id", "phase", "step", "select", "path", "op", "value", "variable", "baseline"); err != nil {
+	if err := recordFields(node, "id", "phase", "step", "select", "path", "op", "value", "variable", "baseline", "visit"); err != nil {
 		return err
 	}
 	if err := node.Decode(&decoded); err != nil {
@@ -165,17 +166,20 @@ const (
 )
 
 type CheckResult struct {
-	ID       string  `json:"id"`
-	Outcome  Outcome `json:"outcome"`
-	Reason   string  `json:"reason,omitempty"`
-	Actual   Scalar  `json:"-"`
-	Expected Scalar  `json:"-"`
+	ID            string  `json:"id"`
+	Outcome       Outcome `json:"outcome"`
+	Reason        string  `json:"reason,omitempty"`
+	Actual        Scalar  `json:"-"`
+	Expected      Scalar  `json:"-"`
+	Visit         int     `json:"visit,omitempty"`
+	VisitsChecked int     `json:"visits_checked,omitempty"`
 }
 type Trial struct {
 	ID            string         `json:"id"`
 	Outcome       Outcome        `json:"outcome"`
 	Reason        string         `json:"reason,omitempty"`
 	TargetStatus  int            `json:"target_status,omitempty"`
+	TargetVisit   int            `json:"target_visit,omitempty"`
 	MutationProof string         `json:"mutation_proof,omitempty"`
 	ErrorKind     flow.ErrorKind `json:"error_kind,omitempty"`
 	FailedStep    string         `json:"failed_step,omitempty"`

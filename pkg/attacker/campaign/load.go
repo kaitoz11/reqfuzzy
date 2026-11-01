@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/kaitoz11/reqfuzzy/pkg/attacker/flow"
@@ -75,6 +76,12 @@ func Validate(spec Spec) error {
 	}
 	ids = map[string]bool{}
 	for _, check := range spec.Checks {
+		if check.Visit != "" && check.Visit != "last" && check.Visit != "all" {
+			visit, err := strconv.Atoi(check.Visit)
+			if err != nil || visit < 1 || visit > flow.MaxStepVisits || strconv.Itoa(visit) != check.Visit {
+				return fmt.Errorf("check %q has invalid visit selector", check.ID)
+			}
+		}
 		if check.ID == "" || ids[check.ID] || check.Step == "" {
 			return fmt.Errorf("checks need unique IDs and step names")
 		}

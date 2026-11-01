@@ -19,12 +19,15 @@ import (
 type Options struct {
 	VulnerableAmounts bool
 	ExpireAtTransfer  bool
+	RefreshOnce       bool
 }
 type account struct {
-	Token, Key, Nonce string
-	Balance           int64
-	NonceUsed         bool
-	Issued            time.Time
+	Token, Key, Nonce   string
+	Balance             int64
+	NonceUsed           bool
+	Issued              time.Time
+	Expired, DeniedOnce bool
+	Refreshes           int
 }
 
 func NewHandler(options Options) http.Handler {
@@ -44,9 +47,10 @@ func NewHandler(options Options) http.Handler {
 			sid := strconv.Itoa(sequence)
 			user := &account{Token: "reference-token-" + sid, Key: "reference-signing-" + sid, Balance: 100}
 			accounts[sid] = user
+			token, key := user.Token, user.Key
 			mutex.Unlock()
 			http.SetCookie(w, &http.Cookie{Name: "reference_sid", Value: sid, Path: "/", HttpOnly: true})
-			fmt.Fprintf(w, `{"access_token":%q,"signing_key":%q,"balance":100}`, user.Token, user.Key)
+			fmt.Fprintf(w, `{"access_token":%q,"signing_key":%q,"balance":100}`, token, key)
 			return
 		}
 		cookie, err := r.Cookie("reference_sid")
@@ -57,7 +61,21 @@ func NewHandler(options Options) http.Handler {
 		mutex.Lock()
 		defer mutex.Unlock()
 		user := accounts[cookie.Value]
-		if user == nil || r.Header.Get("Authorization") != "Bearer "+user.Token {
+		if user != nil && options.RefreshOnce && r.URL.Path == "/refresh" {
+			if r.Method != "POST" {
+				http.Error(w, "method", 405)
+				return
+			}
+			user.Refreshes++
+			user.Token = fmt.Sprintf("reference-token-%s-refresh-%d", cookie.Value, user.Refreshes)
+			user.Key = fmt.Sprintf("reference-signing-%s-refresh-%d", cookie.Value, user.Refreshes)
+			user.Expired = false
+			user.Nonce = ""
+			user.NonceUsed = true
+			fmt.Fprintf(w, `{"access_token":%q,"signing_key":%q,"balance":%d}`, user.Token, user.Key, user.Balance)
+			return
+		}
+		if user == nil || user.Expired || r.Header.Get("Authorization") != "Bearer "+user.Token {
 			http.Error(w, "session", 401)
 			return
 		}
@@ -83,7 +101,11 @@ func NewHandler(options Options) http.Handler {
 				http.Error(w, "method", 405)
 				return
 			}
-			if options.ExpireAtTransfer {
+			if options.ExpireAtTransfer || (options.RefreshOnce && !user.DeniedOnce) {
+				if options.RefreshOnce {
+					user.Expired = true
+					user.DeniedOnce = true
+				}
 				http.Error(w, "expired session", 401)
 				return
 			}

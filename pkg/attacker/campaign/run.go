@@ -27,6 +27,15 @@ func Preflight(runner flow.Runner, main flow.Flow, verification *flow.Flow, spec
 			if step.ExpectStatus != nil && !observed(spec, *step.ExpectStatus) {
 				return fmt.Errorf("baseline target expectation is outside observe_statuses")
 			}
+			if len(step.ExpectStatuses) > 0 {
+				matches := false
+				for _, status := range step.ExpectStatuses {
+					matches = matches || observed(spec, status)
+				}
+				if !matches {
+					return fmt.Errorf("baseline target expectations do not intersect observe_statuses")
+				}
+			}
 		}
 	}
 	if !targetFound {
@@ -157,7 +166,7 @@ func executeTrial(ctx context.Context, runner flow.Runner, main flow.Flow, verif
 	for _, step := range trial.Flow.Steps {
 		if step.StepID == spec.Target.Step {
 			trial.TargetStatus = step.StatusCode
-			break
+			trial.TargetVisit++
 		}
 	}
 	if baseline && runErr != nil {

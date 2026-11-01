@@ -114,44 +114,55 @@ func selectRequest(message flow.RequestSnapshot, target Target, action string) (
 }
 
 func mutationSurvived(result flow.RunResult, target Target, action string) (string, bool) {
+	matched := false
+	proof := "unverified"
 	for _, step := range result.Steps {
 		if step.StepID != target.Step {
 			continue
 		}
-		if step.MutationRequest == nil || step.SentRequest == nil {
-			return "unverified", false
+		var ok bool
+		proof, ok = mutationVisitSurvived(step, target, action)
+		if !ok {
+			return proof, false
 		}
-		if target.AllowTransform {
-			return "transformed", true
-		}
-		expected, err := selectRequest(*step.MutationRequest, target, action)
-		if err != nil {
-			return "unverified", false
-		}
-		actual, err := selectRequest(*step.SentRequest, target, action)
-		if err != nil {
-			return "unverified", false
-		}
-		if expected.exists != actual.exists {
-			return "overwritten", false
-		}
-		if !expected.exists {
-			if action == "remove" {
-				return "verified", true
-			}
-			return "unverified", false
-		}
-		equal := bytes.Equal(expected.raw, actual.raw)
-		if target.Location == "json" {
-			equal, err = jsonutil.EqualJSON(actual.raw, expected.raw)
-			if err != nil {
-				return "unverified", false
-			}
-		}
-		if equal {
-			return "verified", true
-		}
+		matched = true
+	}
+	return proof, matched
+}
+
+func mutationVisitSurvived(step flow.StepResult, target Target, action string) (string, bool) {
+	if step.MutationRequest == nil || step.SentRequest == nil {
+		return "unverified", false
+	}
+	if target.AllowTransform {
+		return "transformed", true
+	}
+	expected, err := selectRequest(*step.MutationRequest, target, action)
+	if err != nil {
+		return "unverified", false
+	}
+	actual, err := selectRequest(*step.SentRequest, target, action)
+	if err != nil {
+		return "unverified", false
+	}
+	if expected.exists != actual.exists {
 		return "overwritten", false
 	}
-	return "unverified", false
+	if !expected.exists {
+		if action == "remove" {
+			return "verified", true
+		}
+		return "unverified", false
+	}
+	equal := bytes.Equal(expected.raw, actual.raw)
+	if target.Location == "json" {
+		equal, err = jsonutil.EqualJSON(actual.raw, expected.raw)
+		if err != nil {
+			return "unverified", false
+		}
+	}
+	if equal {
+		return "verified", true
+	}
+	return "overwritten", false
 }

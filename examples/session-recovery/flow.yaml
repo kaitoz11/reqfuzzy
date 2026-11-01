@@ -1,0 +1,40 @@
+name: recover-signed-transfer
+steps:
+  - id: session
+    request: session
+    expect_status: 200
+    extract:
+      - {name: token, json: access_token}
+      - {name: signing_key, json: signing_key}
+      - {name: initial_balance, json: balance}
+      - {name: sid, cookie: reference_sid}
+  - id: nonce
+    request: nonce
+    max_visits: 2
+    expect_status: 200
+    bind:
+      - {location: header, path: Authorization, variable: token, prefix: "Bearer "}
+      - {location: cookie, path: reference_sid, variable: sid}
+    extract:
+      - {name: nonce, json: nonce}
+  - id: transfer
+    request: transfer
+    max_visits: 2
+    expect_statuses: [201, 401]
+    next: ""
+    routes: [refresh]
+    bind:
+      - {location: header, path: Authorization, variable: token, prefix: "Bearer "}
+      - {location: cookie, path: reference_sid, variable: sid}
+      - {location: json, path: nonce, variable: nonce}
+    before_send: sign
+    after_response: recover
+    extract:
+      - {name: transaction_id, json: transaction_id, on_status: [201]}
+  - id: refresh
+    request: refresh
+    expect_status: 200
+    next: nonce
+    bind:
+      - {location: cookie, path: reference_sid, variable: sid}
+    after_response: refreshed

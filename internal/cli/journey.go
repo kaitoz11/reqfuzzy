@@ -119,11 +119,10 @@ func runJourney(parent context.Context, command string, args []string, stdout, s
 	if err := campaign.Preflight(runner, loaded.project.Flow, loaded.verification, loaded.spec); err != nil {
 		return configError(err)
 	}
-	steps := len(loaded.project.Flow.Steps)
-	if loaded.verification != nil {
-		steps += len(loaded.verification.Steps)
+	upperBound, err := campaign.RequestUpperBound(loaded.project.Flow, loaded.verification, len(loaded.spec.Cases))
+	if err != nil {
+		return configError(err)
 	}
-	upperBound := int64(len(loaded.spec.Cases)+1) * int64(steps)
 	if upperBound > *maxRequests {
 		return configError(fmt.Errorf("planned request upper bound %d exceeds --max-requests %d", upperBound, *maxRequests))
 	}

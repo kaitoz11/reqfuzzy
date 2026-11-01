@@ -22,6 +22,8 @@ The graph places requests in execution order within actor lanes. Gray arrows sho
 
 All six locations are available: JSON, header, query, path, form, and named cookie. Extractions support JSON selectors and response `Set-Cookie` names. Provided variables require an after-response hook. Add, delete, or reorder steps using registered request templates; request files and script source remain in the project.
 
+Flow control fields edit default next, permitted script routes, visit limits, and accepted status sets. Extraction fields also support optional values and status gates. Backward/self routes use separate control connectors; data arrows retain their variable meaning. The request-bound summary includes repeated visits. See [control semantics](flow-control.md); conditions themselves remain in the response hook source.
+
 Search highlights matching steps/variables. The location filter emphasizes one class of dependencies. Use zoom or Fit to navigate larger graphs; narrow screens place the inspector below the canvas. Nodes and edges support keyboard selection, and Up/Down arrows move between graph nodes.
 
 Changes update the graph immediately. Undo/redo and Reset operate in memory. Empty selectors, invalid statuses, duplicate IDs/variables, forward references, unknown requests, and broken campaign references disable export. The CLI still checks hook files and request structure during execution preflight.

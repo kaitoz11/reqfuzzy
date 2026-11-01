@@ -87,7 +87,9 @@ func (r Runner) Run(ctx context.Context, definition Flow, mutation *StepMutation
 
 	contexts := make(map[string]*attacker.RequestContext, len(definition.Steps))
 	clients := make(map[string]*attacker.HClient)
-	for _, step := range definition.Steps {
+	positions := make(map[string]int, len(definition.Steps))
+	for index, step := range definition.Steps {
+		positions[step.ID] = index
 		requestContext, err := r.Store.GetRequestContext(step.Request)
 		if err != nil {
 			return failRun(result, step.ID, RequestError, err)
@@ -112,11 +114,32 @@ func (r Runner) Run(ctx context.Context, definition Flow, mutation *StepMutation
 		}
 	}
 
-	for _, step := range definition.Steps {
+	visits := make(map[string]int)
+	mutated := false
+	for position := 0; position < len(definition.Steps); {
+		step := definition.Steps[position]
 		actor := actorName(step)
 		if err := ctx.Err(); err != nil {
 			return failRun(result, step.ID, TransportError, err)
 		}
+		if visits[step.ID] >= VisitLimit(step) {
+			return failRun(result, step.ID, ControlError, fmt.Errorf("step visit limit %d exhausted", VisitLimit(step)))
+		}
+		visits[step.ID]++
+		for _, extraction := range step.Extract {
+			delete(result.Variables, extraction.Name)
+		}
+		for _, name := range step.Provides {
+			delete(result.Variables, name)
+		}
+		next := ""
+		if position+1 < len(definition.Steps) {
+			next = definition.Steps[position+1].ID
+		}
+		if step.Next != nil {
+			next = *step.Next
+		}
+		requestContext, control := visitContext(ctx, step, visits[step.ID], next)
 		client := clients[actor]
 		request, err := client.NewRequestFromParsed(contexts[step.Request].ParsedRequest)
 		if err != nil {
@@ -127,7 +150,7 @@ func (r Runner) Run(ctx context.Context, definition Flow, mutation *StepMutation
 				delete(request.Headers, key)
 			}
 		}
-		request.SetContext(ctx)
+		request.SetContext(requestContext)
 		request.SetContextData(rawreq.RequestBodyType, contexts[step.Request].ParsedRequest.BodyType)
 		if r.Initialize != nil {
 			if err := r.Initialize(request, result.Variables); err != nil {
@@ -148,6 +171,7 @@ func (r Runner) Run(ctx context.Context, definition Flow, mutation *StepMutation
 			if err := mutation.Apply(request, result.Variables); err != nil {
 				return failRun(result, step.ID, MutationError, err)
 			}
+			mutated = true
 			changed := snapshot(request)
 			mutationRequest = &changed
 		}
@@ -163,6 +187,7 @@ func (r Runner) Run(ctx context.Context, definition Flow, mutation *StepMutation
 		}
 		trace := StepResult{
 			StepID:          step.ID,
+			Visit:           visits[step.ID],
 			Actor:           actor,
 			RequestName:     step.Request,
 			Request:         snapshot(request),
@@ -180,12 +205,21 @@ func (r Runner) Run(ctx context.Context, definition Flow, mutation *StepMutation
 		trace.ResponseHeaders = response.Header.Clone()
 		trace.ResponseBody = append([]byte(nil), response.Bytes()...)
 		result.Steps = append(result.Steps, trace)
-		if step.ExpectStatus != nil && trace.StatusCode != *step.ExpectStatus {
-			return failRun(result, step.ID, StatusError, fmt.Errorf("got HTTP %d, want %d", trace.StatusCode, *step.ExpectStatus))
+		if !acceptsStatus(step, trace.StatusCode) {
+			if step.ExpectStatus != nil {
+				return failRun(result, step.ID, StatusError, fmt.Errorf("got HTTP %d, want %d", trace.StatusCode, *step.ExpectStatus))
+			}
+			return failRun(result, step.ID, StatusError, fmt.Errorf("HTTP %d is outside expected statuses", trace.StatusCode))
 		}
 		for _, extraction := range step.Extract {
+			if !extractionStatus(extraction, trace.StatusCode) {
+				continue
+			}
 			value, err := extractValue(trace, extraction)
 			if err != nil {
+				if extraction.Optional && errors.Is(err, errExtractionMissing) {
+					continue
+				}
 				return failRun(result, step.ID, ExtractionError, err)
 			}
 			result.Variables[extraction.Name] = value
@@ -208,7 +242,23 @@ func (r Runner) Run(ctx context.Context, definition Flow, mutation *StepMutation
 			result.Variables[name] = value
 			trace.Extracted[name] = value
 		}
+		trace.ControlSource = "order"
+		if step.Next != nil {
+			trace.ControlSource = "next"
+		}
+		if control.selected != nil {
+			next = *control.selected
+			trace.ControlSource = "hook"
+		}
+		trace.NextStepID = next
 		result.Steps[len(result.Steps)-1] = trace
+		if next == "" {
+			break
+		}
+		position = positions[next]
+	}
+	if mutation != nil && !mutated {
+		return failRun(result, mutation.StepID, ControlError, fmt.Errorf("mutation target was not executed"))
 	}
 	return result, nil
 }
@@ -231,6 +281,14 @@ func (r Runner) Compare(ctx context.Context, definition Flow, mutation StepMutat
 	var err error
 	comparison.Baseline, err = r.Run(ctx, definition, nil)
 	if err != nil {
+		return comparison, err
+	}
+	baselineTarget := false
+	for _, step := range comparison.Baseline.Steps {
+		baselineTarget = baselineTarget || step.StepID == mutation.StepID
+	}
+	if !baselineTarget {
+		comparison.Baseline, err = failRun(comparison.Baseline, mutation.StepID, ControlError, fmt.Errorf("comparison target was not executed in baseline"))
 		return comparison, err
 	}
 	comparison.Mutated, err = r.Run(ctx, definition, &mutation)

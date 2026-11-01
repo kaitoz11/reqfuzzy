@@ -40,6 +40,9 @@ type responseEvidence struct {
 }
 type stepEvidence struct {
 	ID        string           `json:"id"`
+	Visit     int              `json:"visit,omitempty"`
+	NextStep  string           `json:"next_step,omitempty"`
+	Control   string           `json:"control_source,omitempty"`
 	Actor     string           `json:"actor"`
 	Prepared  requestEvidence  `json:"prepared"`
 	Sent      *requestEvidence `json:"sent,omitempty"`
@@ -180,7 +183,7 @@ func (s *Store) run(result flow.RunResult) runEvidence {
 		if step.StatusCode == 0 {
 			responseBody = bodyEvidence{Unavailable: true, Omitted: true}
 		}
-		trace := stepEvidence{ID: step.StepID, Actor: step.Actor, Prepared: s.request(step.Request), Response: responseEvidence{Status: step.StatusCode, Headers: s.headers(step.ResponseHeaders), Body: responseBody}, Extracted: names(step.Extracted)}
+		trace := stepEvidence{ID: step.StepID, Visit: step.Visit, NextStep: step.NextStepID, Control: step.ControlSource, Actor: step.Actor, Prepared: s.request(step.Request), Response: responseEvidence{Status: step.StatusCode, Headers: s.headers(step.ResponseHeaders), Body: responseBody}, Extracted: names(step.Extracted)}
 		if step.SentRequest != nil {
 			sent := s.request(*step.SentRequest)
 			trace.Sent = &sent

@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
 	"time"
@@ -71,6 +72,7 @@ func RunContext(ctx context.Context, args []string, stdout, stderr io.Writer) in
 	hooks := flags.String("hooks", "", "hook directory (default project/hooks)")
 	timeout := flags.Duration("timeout", 30*time.Second, "whole execution deadline")
 	scriptTimeout := flags.Duration("script-timeout", time.Second, "each JS invocation deadline")
+	maxRequests := flags.Int64("max-requests", 1000, "planned request upper bound")
 	step := flags.String("step", "", "mutation step")
 	location := flags.String("location", "", "mutation location")
 	path := flags.String("path", "", "mutation path")
@@ -94,6 +96,19 @@ func RunContext(ctx context.Context, args []string, stdout, stderr io.Writer) in
 	}
 	if *timeout <= 0 || *scriptTimeout <= 0 {
 		return emit(stdout, stderr, jsonMode, command, nil, 1, fmt.Errorf("timeouts must be positive"))
+	}
+	bound, err := flow.RequestUpperBound(project.Flow)
+	if err != nil {
+		return emit(stdout, stderr, jsonMode, command, nil, 1, err)
+	}
+	if command == "flow compare" {
+		if bound > math.MaxInt64/2 {
+			return emit(stdout, stderr, jsonMode, command, nil, 1, fmt.Errorf("comparison request bound overflows"))
+		}
+		bound *= 2
+	}
+	if *maxRequests < 1 || bound > *maxRequests {
+		return emit(stdout, stderr, jsonMode, command, nil, 1, fmt.Errorf("planned request upper bound %d exceeds --max-requests %d", bound, *maxRequests))
 	}
 	if err := validateTargets(project); err != nil {
 		return emit(stdout, stderr, jsonMode, command, nil, 1, err)

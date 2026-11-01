@@ -14,44 +14,92 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-func observation(check Check, trial Trial) (Scalar, error) {
+func observationSteps(check Check, trial Trial) []*flow.StepResult {
 	result := trial.Flow
 	if check.Phase == "verify" {
 		result = trial.Verification
 	}
-	for _, step := range result.Steps {
-		if step.StepID != check.Step {
-			continue
-		}
-		switch check.Select {
-		case "status":
-			if step.StatusCode == 0 {
-				return nil, fmt.Errorf("no HTTP response")
-			}
-			return Scalar(strconv.Itoa(step.StatusCode)), nil
-		case "body":
-			if !utf8.Valid(step.ResponseBody) {
-				return nil, fmt.Errorf("body is not UTF-8")
-			}
-			raw, _ := json.Marshal(string(step.ResponseBody))
-			return Scalar(raw), nil
-		case "json":
-			if err := jsonutil.ValidateUnique(step.ResponseBody); err != nil {
-				return nil, fmt.Errorf("response JSON is invalid or ambiguous")
-			}
-			selected := gjson.GetBytes(step.ResponseBody, check.Path)
-			if !selected.Exists() || selected.Type == gjson.JSON {
-				return nil, fmt.Errorf("JSON scalar observation is missing")
-			}
-			return scalar([]byte(selected.Raw))
+	var matched []*flow.StepResult
+	for index := range result.Steps {
+		if result.Steps[index].StepID == check.Step {
+			matched = append(matched, &result.Steps[index])
 		}
 	}
-	return nil, fmt.Errorf("observed step was not executed")
+	return matched
+}
+
+func observation(check Check, step *flow.StepResult) (Scalar, error) {
+	if step == nil {
+		return nil, fmt.Errorf("observed step visit was not executed")
+	}
+	switch check.Select {
+	case "status":
+		if step.StatusCode == 0 {
+			return nil, fmt.Errorf("no HTTP response")
+		}
+		return Scalar(strconv.Itoa(step.StatusCode)), nil
+	case "body":
+		if !utf8.Valid(step.ResponseBody) {
+			return nil, fmt.Errorf("body is not UTF-8")
+		}
+		raw, _ := json.Marshal(string(step.ResponseBody))
+		return Scalar(raw), nil
+	case "json":
+		if err := jsonutil.ValidateUnique(step.ResponseBody); err != nil {
+			return nil, fmt.Errorf("response JSON is invalid or ambiguous")
+		}
+		selected := gjson.GetBytes(step.ResponseBody, check.Path)
+		if !selected.Exists() || selected.Type == gjson.JSON {
+			return nil, fmt.Errorf("JSON scalar observation is missing")
+		}
+		return scalar([]byte(selected.Raw))
+	}
+	return nil, fmt.Errorf("unsupported observation")
 }
 
 func EvaluateCheck(check Check, trial, baseline Trial) CheckResult {
+	steps, reference := observationSteps(check, trial), observationSteps(check, baseline)
+	missing := CheckResult{ID: check.ID, Outcome: Inconclusive, Reason: "observed step visit was not executed"}
+	if len(steps) == 0 {
+		return missing
+	}
+	if check.Visit == "all" {
+		worst := CheckResult{ID: check.ID, Outcome: Pass}
+		for index, step := range steps {
+			var before *flow.StepResult
+			if index < len(reference) {
+				before = reference[index]
+			}
+			current := evaluateVisit(check, trial, step, before)
+			current.Visit = index + 1
+			if worst.Outcome == Pass || (current.Outcome == Inconclusive && worst.Outcome != Inconclusive) {
+				worst = current
+			}
+		}
+		worst.VisitsChecked = len(steps)
+		return worst
+	}
+	index := len(steps) - 1
+	baselineIndex := len(reference) - 1
+	if check.Visit != "" && check.Visit != "last" {
+		ordinal, err := strconv.Atoi(check.Visit)
+		if err != nil || ordinal < 1 || ordinal > len(steps) || strconv.Itoa(ordinal) != check.Visit {
+			return missing
+		}
+		index, baselineIndex = ordinal-1, ordinal-1
+	}
+	var before *flow.StepResult
+	if baselineIndex >= 0 && baselineIndex < len(reference) {
+		before = reference[baselineIndex]
+	}
+	result := evaluateVisit(check, trial, steps[index], before)
+	result.Visit, result.VisitsChecked = index+1, 1
+	return result
+}
+
+func evaluateVisit(check Check, trial Trial, step, baseline *flow.StepResult) CheckResult {
 	result := CheckResult{ID: check.ID, Outcome: Inconclusive}
-	actual, err := observation(check, trial)
+	actual, err := observation(check, step)
 	if err != nil {
 		result.Reason = err.Error()
 		return result

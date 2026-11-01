@@ -25,6 +25,9 @@ type envelope struct {
 }
 type stepSummary struct {
 	ID          string `json:"id"`
+	Visit       int    `json:"visit,omitempty"`
+	NextStep    string `json:"next_step,omitempty"`
+	Control     string `json:"control_source,omitempty"`
 	Actor       string `json:"actor"`
 	Request     string `json:"request"`
 	Status      int    `json:"status"`
@@ -49,7 +52,7 @@ func summary(result flow.RunResult) runSummary {
 			digest := sha256.Sum256(step.ResponseBody)
 			hash = hex.EncodeToString(digest[:])
 		}
-		out.Steps = append(out.Steps, stepSummary{ID: step.StepID, Actor: step.Actor, Request: step.RequestName, Status: step.StatusCode, ResponseSHA: hash})
+		out.Steps = append(out.Steps, stepSummary{ID: step.StepID, Visit: step.Visit, NextStep: step.NextStepID, Control: step.ControlSource, Actor: step.Actor, Request: step.RequestName, Status: step.StatusCode, ResponseSHA: hash})
 	}
 	return out
 }
@@ -116,10 +119,28 @@ func emit(stdout, stderr io.Writer, jsonMode bool, command string, result any, c
 	case flowView:
 		fmt.Fprintln(stdout, value.Name)
 		for _, step := range value.Steps {
-			fmt.Fprintf(stdout, "  %s  %s\n", step.ID, step.Request)
+			fmt.Fprintf(stdout, "  %s  %s", step.ID, step.Request)
+			if step.MaxVisits > 1 {
+				fmt.Fprintf(stdout, " (up to %d visits)", step.MaxVisits)
+			}
+			if step.ExpectStatus != nil {
+				fmt.Fprintf(stdout, " (HTTP %d)", *step.ExpectStatus)
+			} else if len(step.ExpectStatuses) > 0 {
+				fmt.Fprintf(stdout, " (HTTP %v)", step.ExpectStatuses)
+			}
+			fmt.Fprintln(stdout)
 		}
 		for _, edge := range value.Edges {
 			fmt.Fprintf(stdout, "  %s -> %s  %s => %s:%s\n", edge.From, edge.To, edge.Variable, edge.Location, edge.Path)
+		}
+		for _, control := range value.Controls {
+			if control.Kind != "order" {
+				target := control.To
+				if target == "" {
+					target = "end"
+				}
+				fmt.Fprintf(stdout, "  %s --%s--> %s\n", control.From, control.Kind, target)
+			}
 		}
 	case map[string]any:
 		fmt.Fprintf(stdout, "Created project %s (%v requests)\n", value["project"], value["requests"])
@@ -129,7 +150,19 @@ func emit(stdout, stderr io.Writer, jsonMode bool, command string, result any, c
 func printRun(out io.Writer, value runSummary) {
 	fmt.Fprintln(out, value.FlowName)
 	for _, step := range value.Steps {
-		fmt.Fprintf(out, "  %s  HTTP %d  %s\n", step.ID, step.Status, step.ResponseSHA)
+		label := step.ID
+		if step.Visit > 1 {
+			label += fmt.Sprintf(" (visit %d)", step.Visit)
+		}
+		fmt.Fprintf(out, "  %s  HTTP %d  %s", label, step.Status, step.ResponseSHA)
+		if step.Control != "" && step.Control != "order" {
+			if step.NextStep == "" {
+				fmt.Fprint(out, " -> end")
+			} else {
+				fmt.Fprintf(out, " -> %s", step.NextStep)
+			}
+		}
+		fmt.Fprintln(out)
 	}
 	if value.FailedStepID != "" {
 		fmt.Fprintf(out, "  failed step: %s\n", value.FailedStepID)
@@ -137,11 +170,22 @@ func printRun(out io.Writer, value runSummary) {
 }
 
 type viewStep struct {
-	ID            string `json:"id"`
-	Request       string `json:"request"`
-	Actor         string `json:"actor"`
-	BeforeSend    string `json:"before_send,omitempty"`
-	AfterResponse string `json:"after_response,omitempty"`
+	ID             string   `json:"id"`
+	Request        string   `json:"request"`
+	Actor          string   `json:"actor"`
+	BeforeSend     string   `json:"before_send,omitempty"`
+	AfterResponse  string   `json:"after_response,omitempty"`
+	MaxVisits      int      `json:"max_visits,omitempty"`
+	Next           *string  `json:"next,omitempty"`
+	Routes         []string `json:"routes,omitempty"`
+	ExpectStatus   *int     `json:"expect_status,omitempty"`
+	ExpectStatuses []int    `json:"expect_statuses,omitempty"`
+}
+
+type controlEdge struct {
+	From string `json:"from"`
+	To   string `json:"to"`
+	Kind string `json:"kind"`
 }
 type edge struct {
 	From     string `json:"from"`
@@ -151,16 +195,28 @@ type edge struct {
 	Path     string `json:"path"`
 }
 type flowView struct {
-	Name  string     `json:"name"`
-	Steps []viewStep `json:"steps"`
-	Edges []edge     `json:"edges"`
+	Name     string        `json:"name"`
+	Steps    []viewStep    `json:"steps"`
+	Edges    []edge        `json:"edges"`
+	Controls []controlEdge `json:"controls,omitempty"`
 }
 
 func view(definition flow.Flow) flowView {
 	result := flowView{Name: definition.Name, Steps: []viewStep{}, Edges: []edge{}}
 	sources := map[string]string{}
-	for _, step := range definition.Steps {
-		result.Steps = append(result.Steps, viewStep{ID: step.ID, Request: step.Request, Actor: step.Actor, BeforeSend: step.BeforeSend, AfterResponse: step.AfterResponse})
+	for index, step := range definition.Steps {
+		result.Steps = append(result.Steps, viewStep{ID: step.ID, Request: step.Request, Actor: step.Actor, BeforeSend: step.BeforeSend, AfterResponse: step.AfterResponse, MaxVisits: flow.VisitLimit(step), Next: step.Next, Routes: step.Routes, ExpectStatus: step.ExpectStatus, ExpectStatuses: step.ExpectStatuses})
+		next, kind := "", "order"
+		if index+1 < len(definition.Steps) {
+			next = definition.Steps[index+1].ID
+		}
+		if step.Next != nil {
+			next, kind = *step.Next, "next"
+		}
+		result.Controls = append(result.Controls, controlEdge{step.ID, next, kind})
+		for _, target := range step.Routes {
+			result.Controls = append(result.Controls, controlEdge{step.ID, target, "route"})
+		}
 		for _, binding := range step.Bind {
 			result.Edges = append(result.Edges, edge{From: sources[binding.Variable], To: step.ID, Variable: binding.Variable, Location: binding.Location, Path: binding.Path})
 		}

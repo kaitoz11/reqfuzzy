@@ -138,6 +138,8 @@ func (p *Program) BeforeSend(request attacker.Request, variables flow.Variables)
 		ctx := vm.NewObject()
 		_ = ctx.Set("request", jsRequest)
 		_ = ctx.Set("vars", variablesObject(vm, staged))
+		info, _ := flowObject(vm, request.Context(), false)
+		_ = ctx.Set("flow", info)
 		if err := invoke(vm, "beforeSend", ctx); err != nil {
 			return err
 		}
@@ -169,7 +171,12 @@ func (p *Program) AfterResponse(response attacker.Response, variables flow.Varia
 		jsContext := vm.NewObject()
 		_ = jsContext.Set("response", object)
 		_ = jsContext.Set("vars", variablesObject(vm, staged))
+		info, commitNavigation := flowObject(vm, ctx, true)
+		_ = jsContext.Set("flow", info)
 		if err := invoke(vm, "afterResponse", jsContext); err != nil {
+			return err
+		}
+		if err := commitNavigation(); err != nil {
 			return err
 		}
 		commitVariables(variables, staged)

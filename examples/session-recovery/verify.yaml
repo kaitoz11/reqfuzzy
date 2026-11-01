@@ -1,0 +1,8 @@
+name: verify-recovered-account
+steps:
+  - id: balance
+    request: balance
+    expect_status: 200
+    bind:
+      - {location: header, path: Authorization, variable: token, prefix: "Bearer "}
+      - {location: cookie, path: reference_sid, variable: sid}

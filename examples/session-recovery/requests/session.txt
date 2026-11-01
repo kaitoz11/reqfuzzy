@@ -1,0 +1,5 @@
+POST /session HTTP/1.1
+Host: captured.reference
+Content-Type: application/json
+
+{}

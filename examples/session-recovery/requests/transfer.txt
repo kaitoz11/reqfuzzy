@@ -1,0 +1,5 @@
+POST /transfer HTTP/1.1
+Host: captured.reference
+Content-Type: application/json
+
+{"amount":10,"nonce":"captured"}

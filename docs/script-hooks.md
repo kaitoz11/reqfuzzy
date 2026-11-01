@@ -52,6 +52,8 @@ Bindings and the selected mutation run before `beforeSend`, so the signature cov
 | `ctx.request.setHeader(name, value)` | Replace all case variants with one validated value. |
 | `ctx.request.removeHeader(name)` | Remove all case variants. |
 | `ctx.response.status`, `.body`, `.getHeader(name)` | Read response data in `afterResponse`. |
+| `ctx.flow.step`, `.visit`, `.limit` | Current logical step and its one-based bounded visit, in both hook types. |
+| `ctx.flow.next(name)` / `.stop()` | Choose a declared/default destination or permitted end in `afterResponse`; the choice is staged until callback success. |
 | `ctx.vars.get(name)` | Read a scalar; throws when missing or outside the supported safe JS number range. |
 | `ctx.vars.set(name, value)` | Store a string, finite safe number, or boolean. |
 | `ctx.vars.getRaw(name)` | Read the exact JSON scalar text. |

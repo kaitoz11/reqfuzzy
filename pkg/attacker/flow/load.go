@@ -78,6 +78,21 @@ func ValidateWithVariables(candidate Flow, initial Variables) error {
 		if step.ExpectStatus != nil && (*step.ExpectStatus < 100 || *step.ExpectStatus > 599) {
 			return fmt.Errorf("flow step %q: expect_status must be 100 through 599", step.ID)
 		}
+		if step.ExpectStatuses != nil {
+			if step.ExpectStatus != nil || len(step.ExpectStatuses) == 0 {
+				return fmt.Errorf("flow step %q: use either expect_status or a nonempty expect_statuses", step.ID)
+			}
+			statuses := map[int]bool{}
+			for _, status := range step.ExpectStatuses {
+				if status < 100 || status > 599 || statuses[status] {
+					return fmt.Errorf("flow step %q: expected statuses must be unique HTTP codes", step.ID)
+				}
+				statuses[status] = true
+			}
+		}
+		if VisitLimit(step) < 1 || VisitLimit(step) > MaxStepVisits {
+			return fmt.Errorf("flow step %q: max_visits must be 1 through %d", step.ID, MaxStepVisits)
+		}
 		for _, binding := range step.Bind {
 			if binding.Path == "" || binding.Variable == "" {
 				return fmt.Errorf("flow step %q: binding path and variable are required", step.ID)
@@ -105,6 +120,18 @@ func ValidateWithVariables(candidate Flow, initial Variables) error {
 			}
 		}
 		for _, extraction := range step.Extract {
+			if extraction.OnStatus != nil {
+				if len(extraction.OnStatus) == 0 {
+					return fmt.Errorf("flow step %q: on_status must be nonempty", step.ID)
+				}
+				seen := map[int]bool{}
+				for _, status := range extraction.OnStatus {
+					if status < 100 || status > 599 || seen[status] {
+						return fmt.Errorf("flow step %q: on_status needs unique HTTP codes", step.ID)
+					}
+					seen[status] = true
+				}
+			}
 			if extraction.Name == "" || (extraction.JSONPath == "") == (extraction.Cookie == "") {
 				return fmt.Errorf("flow step %q: extraction requires a name and exactly one json or cookie selector", step.ID)
 			}
@@ -129,6 +156,26 @@ func ValidateWithVariables(candidate Flow, initial Variables) error {
 				return fmt.Errorf("flow step %q: duplicate variable %q", step.ID, name)
 			}
 			variables[name] = struct{}{}
+		}
+	}
+	for _, step := range candidate.Steps {
+		targets := append([]string(nil), step.Routes...)
+		seen := map[string]bool{}
+		for _, target := range step.Routes {
+			if seen[target] {
+				return fmt.Errorf("flow step %q: duplicate route", step.ID)
+			}
+			seen[target] = true
+		}
+		if step.Next != nil {
+			targets = append(targets, *step.Next)
+		}
+		for _, target := range targets {
+			if target != "" {
+				if _, exists := stepIDs[target]; !exists {
+					return fmt.Errorf("flow step %q: next destination %q does not exist", step.ID, target)
+				}
+			}
 		}
 	}
 	return nil

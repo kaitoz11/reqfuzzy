@@ -18,6 +18,9 @@ type RequestSnapshot struct {
 
 type StepResult struct {
 	StepID          string
+	Visit           int
+	NextStepID      string
+	ControlSource   string
 	Actor           string
 	RequestName     string
 	Request         RequestSnapshot
@@ -54,6 +57,7 @@ const (
 	TransportError   ErrorKind = "transport"
 	StatusError      ErrorKind = "status"
 	ExtractionError  ErrorKind = "extraction"
+	ControlError     ErrorKind = "control"
 )
 
 type StepError struct {

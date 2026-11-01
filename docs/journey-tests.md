@@ -66,6 +66,8 @@ checks:
     variable: initial_balance
 ```
 
+Controlled journeys may revisit steps. Mutations apply and are proved on every target visit; target status is the final response. Checks support `visit: last` (default), a positive ordinal, or `all`, with missing matching observations remaining inconclusive. See [bounded flow control](flow-control.md) and the runnable [recovery example](../examples/session-recovery/README.md). Request planning includes every declared visit limit, not just the number of definitions.
+
 Operators are `eq`, `ne`, `lt`, `lte`, `gt`, `gte`, `contains`, `not_contains`, and `matches`. Ordered comparisons require numbers and use exact rational arithmetic. Numeric operands are bounded to 4096 characters and exponent magnitude 10000 to keep evaluation finite. Regex checks require a literal string pattern compiled before execution. Missing observations, duplicate-key JSON, incompatible operand types, and unsupported precision are inconclusive.
 
 An assessed case is `pass` when every check passes and `fail` when a configured invariant is violated. If any required check cannot be assessed, that case is inconclusive. Any valid failed case makes the aggregate result fail; otherwise any inconclusive case makes it inconclusive. These are user-defined test verdicts, not a universal automatic vulnerability classification.

@@ -53,22 +53,30 @@
     var heading = element("div", null, "section-title"); heading.append(element("h3", title));
     if (add) heading.append(button("Add", add)); parent.append(heading);
   }
+  function checkbox(parent, label, checked, focusKey, change) {
+    var wrapper = element("label", null, "check-field"), input = element("input"); input.type = "checkbox"; input.checked = !!checked; input.dataset.focus = focusKey;
+    input.addEventListener("change", function () { var value = input.checked; edit(function () { change(value); }); });
+    wrapper.append(input, element("span", label)); parent.append(wrapper);
+  }
+  function statusText(value) { return Array.isArray(value) ? value.join(", ") : value === undefined ? "" : String(value); }
+  function statusCodes(value) { return value.split(/[,\s]+/).filter(Boolean).map(function (part) { return /^\d+$/.test(part) ? Number(part) : part; }); }
   function captureFocus() {
     var node = document.activeElement;
     if (!node || !node.dataset.focus) return null;
-    return { key: node.dataset.focus, start: node.selectionStart, end: node.selectionEnd };
+    return { key: node.dataset.focus, start: node.selectionStart, end: node.selectionEnd, draft: node.dataset.draftText === "true" ? node.value : undefined };
   }
   function restoreFocus(focus) {
     if (!focus) return;
     var node = document.querySelector('[data-focus="' + focus.key + '"]');
     if (!node) return;
+    if (focus.draft !== undefined) node.value = focus.draft;
     node.focus({ preventScroll: true });
     if (typeof focus.start === "number" && typeof node.setSelectionRange === "function") node.setSelectionRange(focus.start, focus.end);
   }
   function renderHeader(analysis) {
     $("project-title").textContent = state.project.flows[0].definition.name || "API journey";
     var dirty = JSON.stringify(state.project) !== JSON.stringify(initial);
-    $("summary").textContent = analysis.nodes.length + " steps · " + analysis.edges.length + " dependencies · " + (dirty ? "Draft changes" : "Project snapshot");
+    $("summary").textContent = analysis.nodes.length + " steps · " + analysis.edges.length + " dependencies · ≤" + analysis.requestBound + " requests/trial · " + (dirty ? "Draft changes" : "Project snapshot");
     $("undo").disabled = !state.undo.length; $("redo").disabled = !state.redo.length; $("reset").disabled = !dirty;
     var filename = phase().file.split(/[\\/]/).pop();
     $("download").textContent = "Export " + filename; $("download").title = "Export " + phase().file;
@@ -124,9 +132,28 @@
     field(body, "Request", step.request, prefix + "request", function (value) { step.request = value; }, requests);
     var grid = element("div", null, "field-grid"); body.append(grid);
     field(grid, "Actor", step.actor || "", prefix + "actor", function (value) { if (value) step.actor = value; else delete step.actor; });
-    field(grid, "Expected HTTP status", step.expect_status, prefix + "status", function (value) { if (value === "") delete step.expect_status; else step.expect_status = /^\d+$/.test(value) ? Number(value) : value; });
+    field(grid, "Expected HTTP status", step.expect_status, prefix + "status", function (value) { if (value === "") delete step.expect_status; else { step.expect_status = /^\d+$/.test(value) ? Number(value) : value; delete step.expect_statuses; } });
+    field(body, "Accepted HTTP statuses", statusText(step.expect_statuses), prefix + "statuses", function (value) { if (value === "") delete step.expect_statuses; else { step.expect_statuses = statusCodes(value); delete step.expect_status; } }).dataset.draftText = "true";
     field(body, "Before-send hook", step.before_send, prefix + "before", function (value) { if (value) step.before_send = value; else delete step.before_send; });
     field(body, "After-response hook", step.after_response, prefix + "after", function (value) { if (value) step.after_response = value; else delete step.after_response; });
+    section(body, "Flow control", function () { edit(function () { if (!step.routes) step.routes = []; step.routes.push(step.id); }); });
+    field(body, "Maximum visits", step.max_visits, prefix + "max-visits", function (value) { if (value === "") delete step.max_visits; else step.max_visits = /^\d+$/.test(value) ? Number(value) : value; });
+    function routeOptions(target, ordered) {
+      var options = ordered ? [{ value: "order", label: "Next step in definition" }] : [];
+      options.push({ value: "end", label: "End flow" });
+      steps.forEach(function (candidate, index) { if (candidate.id) options.push({ value: "step-" + index, label: candidate.id }); });
+      if (target !== undefined && target !== "" && !steps.some(function (candidate) { return candidate.id === target; })) options.push({ value: "missing", label: String(target) + " (missing)" });
+      return options;
+    }
+    function routeChoice(target) { if (target === undefined) return "order"; if (target === "") return "end"; var index = steps.findIndex(function (candidate) { return candidate.id === target; }); return index < 0 ? "missing" : "step-" + index; }
+    function routeTarget(value) { return value === "end" ? "" : steps[Number(value.slice(5))].id; }
+    field(body, "Default next", routeChoice(step.next), prefix + "next", function (value) { if (value === "order") delete step.next; else if (value !== "missing") step.next = routeTarget(value); }, routeOptions(step.next, true));
+    (step.routes || []).forEach(function (target, index) {
+      var entry = element("div", null, "entry");
+      field(entry, "Allowed script route", routeChoice(target), prefix + "route-" + index, function (value) { if (value !== "missing") step.routes[index] = routeTarget(value); }, routeOptions(target, false));
+      entry.append(button("Remove route", function () { edit(function () { step.routes.splice(index, 1); if (!step.routes.length) delete step.routes; }); }, "small quiet danger")); body.append(entry);
+    });
+    body.append(element("p", "Response hooks choose declared routes with ctx.flow.next(name) or ctx.flow.stop(). Visit limits bound repetition.", "help"));
     section(body, "Response extractions", function () { edit(function () { if (!step.extract) step.extract = []; step.extract.push({ name: "", json: "" }); }); });
     (step.extract || []).forEach(function (extraction, index) {
       var entry = element("div", null, "entry"), row = prefix + "extract-" + index + "-";
@@ -134,6 +161,8 @@
       var kind = Object.prototype.hasOwnProperty.call(extraction, "cookie") ? "cookie" : "json";
       field(entry, "Source", kind, row + "source", function (value) { var selector = extraction[kind] || ""; delete extraction.json; delete extraction.cookie; extraction[value] = selector; }, [{ value: "json", label: "JSON response" }, { value: "cookie", label: "Set-Cookie response" }]);
       field(entry, kind === "cookie" ? "Cookie name" : "JSON selector", extraction[kind] || "", row + "selector", function (value) { extraction[kind] = value; });
+      field(entry, "Only on statuses", statusText(extraction.on_status), row + "on-status", function (value) { if (value === "") delete extraction.on_status; else extraction.on_status = statusCodes(value); }).dataset.draftText = "true";
+      checkbox(entry, "Optional when absent or null", extraction.optional, row + "optional", function (value) { if (value) extraction.optional = true; else delete extraction.optional; });
       entry.append(button("Remove extraction", function () { edit(function () { step.extract.splice(index, 1); if (!step.extract.length) delete step.extract; }); }, "small quiet danger")); body.append(entry);
     });
     if (!(step.extract || []).length) body.append(element("p", "Extract a response value for later requests.", "help"));
@@ -161,39 +190,55 @@
     body.append(element("p", "Request files and hook source stay in your project. The CLI checks them before execution.", "help"));
   }
   function renderGraph(analysis) {
-    var actors = [], positions = new Map(), portsOut = new Map(), portsIn = new Map();
+    var actors = [], positions = new Map(), portsOut = new Map(), portsIn = new Map(), controlOut = new Map(), controlIn = new Map(), order = new Map();
+    analysis.nodes.forEach(function (node, index) { order.set(node.key, index); controlOut.set(node.key, []); controlIn.set(node.key, []); });
+    function straight(control) { return control.to && (control.kind === "order" || control.kind === "verify") && order.get(control.to) === order.get(control.from)+1; }
+    var branches = analysis.controls.filter(function (control) { return control.to && !straight(control); });
+    branches.forEach(function (control) { controlOut.get(control.from).push(control); controlIn.get(control.to).push(control); });
+    var gutter = branches.length ? branches.length*22+40 : 0;
     analysis.nodes.forEach(function (node) { var actor = node.step.actor || "default"; if (actors.indexOf(actor) < 0) actors.push(actor); portsOut.set(node.key, []); portsIn.set(node.key, []); });
     analysis.edges.forEach(function (edge) { portsOut.get(edge.from).push(edge); portsIn.get(edge.to).push(edge); });
     var y = 72, lastPhase = "";
     analysis.nodes.forEach(function (node) {
       if (node.phase !== lastPhase && lastPhase) y += 32;
-      var count = portsOut.get(node.key).length + portsIn.get(node.key).length, height = Math.max(120, 112 + count * 22);
-      positions.set(node.key, { x: 48 + actors.indexOf(node.step.actor || "default") * 340, y: y, height: height, node: node });
+      var count = portsOut.get(node.key).length + portsIn.get(node.key).length, controlCount = controlOut.get(node.key).length + controlIn.get(node.key).length, height = Math.max(120, 112 + count * 22, 80 + controlCount*18);
+      positions.set(node.key, { x: gutter + 48 + actors.indexOf(node.step.actor || "default") * 340, y: y, height: height, node: node });
       y += height + 56; lastPhase = node.phase;
     });
-    graphWidth = Math.max(760, actors.length * 340 + 300 + analysis.edges.length * 22); graphHeight = Math.max(400, y + 20);
+    graphWidth = gutter + Math.max(760, actors.length * 340 + 300 + analysis.edges.length * 22); graphHeight = Math.max(400, y + 20);
     var svg = svgElement("svg", { viewBox: "0 0 " + graphWidth + " " + graphHeight, role: "group", "aria-labelledby": "flow-map-title flow-map-desc" });
     svg.append(svgElement("title", { id: "flow-map-title" }, "API journey dependencies"), svgElement("desc", { id: "flow-map-desc" }, "Ordered request steps grouped by actor, with labeled variable dependencies across journey and verification flows."));
     var defs = svgElement("defs");
-    ["order"].concat(core.locations).forEach(function (location) {
+    ["order", "route"].concat(core.locations).forEach(function (location) {
       var marker = svgElement("marker", { id: "arrow-" + location, viewBox: "0 0 8 8", refX: 7, refY: 4, markerWidth: 7, markerHeight: 7, orient: "auto", markerUnits: "userSpaceOnUse" });
-      marker.append(svgElement("path", { d: "M 0 0 L 8 4 L 0 8 Z", fill: palette[location] || "#aab6c7" })); defs.append(marker);
+      marker.append(svgElement("path", { d: "M 0 0 L 8 4 L 0 8 Z", fill: location === "route" ? "#b75621" : palette[location] || "#aab6c7" })); defs.append(marker);
     }); svg.append(defs);
-    actors.forEach(function (actor, index) { svg.append(svgElement("text", { x: 56 + index * 340, y: 24, "class": "lane" }, "actor · " + clip(actor, 35))); });
-    analysis.nodes.forEach(function (node, index) {
-      var position = positions.get(node.key), previous = index > 0 ? positions.get(analysis.nodes[index - 1].key) : null;
-      if (previous) {
+    actors.forEach(function (actor, index) { svg.append(svgElement("text", { x: gutter + 56 + index * 340, y: 24, "class": "lane" }, "actor · " + clip(actor, 35))); });
+    analysis.controls.forEach(function (control) {
+      var previous = positions.get(control.from), position = positions.get(control.to);
+      if (straight(control)) {
         var x1 = previous.x + 143, y1 = previous.y + previous.height, x2 = position.x + 143, y2 = position.y, mid = (y1 + y2) / 2, direction = x2 > x1 ? 1 : -1;
         var path = x1 === x2 ? "M " + x1 + " " + y1 + " V " + y2 : "M " + x1 + " " + y1 + " V " + (mid - 8) + " Q " + x1 + " " + mid + " " + (x1 + direction * 8) + " " + mid + " H " + (x2 - direction * 8) + " Q " + x2 + " " + mid + " " + x2 + " " + (mid + 8) + " V " + y2;
-        svg.append(svgElement("path", { d: path, fill: "none", stroke: "#aab6c7", "stroke-width": 1.2, "marker-end": "url(#arrow-order)", "stroke-dasharray": node.phase !== analysis.nodes[index - 1].phase ? "4 4" : "none" }));
+        svg.append(svgElement("path", { d: path, fill: "none", stroke: "#aab6c7", "stroke-width": 1.2, "marker-end": "url(#arrow-order)", "stroke-dasharray": control.kind === "verify" ? "4 4" : "none" }));
+      } else if (position) {
+        var branchIndex = branches.indexOf(control), track = 20 + branchIndex*22;
+        var x1 = previous.x, y1 = previous.y + 34 + controlOut.get(control.from).indexOf(control)*18;
+        var x2 = position.x, y2 = position.y + 34 + (controlOut.get(control.to).length + controlIn.get(control.to).indexOf(control))*18;
+        var direction = y2 > y1 ? 1 : -1, scripted = control.kind === "route" || control.via === "route", color = scripted ? "#b75621" : "#7b8a9f";
+        var group = svgElement("g", { "class": "control-edge", tabindex: 0, role: "button", "aria-label": "Edit " + (scripted ? "script" : "default") + " route from " + previous.node.step.id + " to " + position.node.step.id });
+        group.append(svgElement("path", { d: "M " + x1 + " " + y1 + " H " + (track+8) + " Q " + track + " " + y1 + " " + track + " " + (y1+direction*8) + " V " + (y2-direction*8) + " Q " + track + " " + y2 + " " + (track+8) + " " + y2 + " H " + x2, fill: "none", stroke: color, "stroke-width": 1.5, "stroke-dasharray": scripted ? "5 3" : "none", "marker-end": "url(#arrow-" + (scripted ? "route" : "order") + ")" }));
+        var caption = clip((scripted ? "script: " : control.kind === "verify" ? "verify: " : "next: ") + (control.target || "end"), Math.max(8, Math.min(22, Math.floor((x1-track-20)/6))));
+        group.append(svgElement("rect", { x: x1-caption.length*6.1-14, y: y1-20, width: caption.length*6.1+8, height: 16, rx: 3, "class": "edge-label" }),svgElement("text", { x: x1-10, y: y1-8, fill: color, "font-size": 10, "text-anchor":"end" },caption));
+        function activateControl() { selectNode(control.from,false); var input=document.querySelector('[data-focus="'+control.from+'-'+(scripted ? "route-"+control.routeIndex : "next")+'"]');if(input)input.focus({preventScroll:false}); }
+        group.addEventListener("click",activateControl);group.addEventListener("keydown",function(event){if(event.key==="Enter"||event.key===" "){event.preventDefault();activateControl();}});svg.append(group);
       }
-      if (index === 0 || node.phase !== analysis.nodes[index - 1].phase) svg.append(svgElement("text", { x: 48, y: position.y - 24, "class": "lane" }, node.label));
     });
+    analysis.nodes.forEach(function(node,index){if(index===0||node.phase!==analysis.nodes[index-1].phase)svg.append(svgElement("text",{x:gutter+48,y:positions.get(node.key).y-24,"class":"lane"},node.label));});
     var query = state.search.toLowerCase(), selected = key();
     analysis.edges.forEach(function (edge, edgeIndex) {
       var from = positions.get(edge.from), to = positions.get(edge.to), sourcePort = portsOut.get(edge.from).indexOf(edge), targetPort = portsIn.get(edge.to).indexOf(edge);
       var x1 = from.x + 286, y1 = from.y + 102 + (portsIn.get(edge.from).length + sourcePort) * 22, x2 = to.x + 286, y2 = to.y + 102 + targetPort * 22;
-      var track = actors.length * 340 + 260 + edgeIndex * 22, color = palette[edge.location] || "#536f99";
+      var track = gutter + actors.length * 340 + 260 + edgeIndex * 22, color = palette[edge.location] || "#536f99";
       var match = (!state.location || edge.location === state.location) && (!query || (edge.variable + " " + edge.location + " " + edge.path).toLowerCase().indexOf(query) >= 0);
       var connected = edge.from === selected || edge.to === selected;
       var group = svgElement("g", { "class": "edge", tabindex: 0, role: "button", "aria-label": "Edit " + edge.variable + " binding at " + edge.location + ":" + edge.path, opacity: match ? (connected ? 1 : .6) : .1 });
@@ -215,7 +260,9 @@
       group.append(svgElement("text", { x: position.x + 16, y: position.y + 48, "class": "title" }, clip(step.id || "Unnamed step", 32)));
       group.append(svgElement("text", { x: position.x + 16, y: position.y + 70, "class": "sub" }, "request · " + clip(step.request, 31)));
       var hooks = [step.before_send, step.after_response].filter(Boolean);
-      group.append(svgElement("text", { x: position.x + 16, y: position.y + 89, "class": "meta" }, (step.expect_status ? "HTTP " + step.expect_status + " · " : "") + ((step.extract || []).length + (step.provides || []).length) + " variables" + (hooks.length ? " · " + hooks.length + " hooks" : "")));
+      var statuses = step.expect_status || (step.expect_statuses || []).join("/");
+      group.append(svgElement("text", { x: position.x + 16, y: position.y + 89, "class": "meta" }, clip((statuses ? "HTTP " + statuses + " · " : "") + ((step.extract || []).length + (step.provides || []).length) + " variables" + ((step.max_visits || 1)>1 ? " · ≤"+step.max_visits+" visits" : hooks.length ? " · " + hooks.length + " hooks" : ""),42)));
+      if (analysis.controls.some(function(control){return control.from===node.key&&!control.to;})) group.append(svgElement("text",{x:position.x+16,y:position.y+position.height-12,"class":"lane"},"end"));
       group.addEventListener("click", function () { selectNode(node.key, false); });
       group.addEventListener("keydown", function (event) {
         if (event.key === "Enter" || event.key === " ") { event.preventDefault(); selectNode(node.key, true); }
@@ -226,6 +273,7 @@
     $("canvas").replaceChildren(svg); applyZoom();
     var legend = $("legend"); legend.replaceChildren();
     var order = element("span", "Request order"); var stroke = element("i", null, "swatch"); order.prepend(stroke); legend.append(order);
+    if(branches.length){var route=element("span","Control routes");route.style.color="#b75621";route.prepend(element("i",null,"swatch"));legend.append(route);}
     core.locations.forEach(function (location) { if (!analysis.edges.some(function (edge) { return edge.location === location; })) return; var item = element("span", location); item.style.color = palette[location]; item.prepend(element("i", null, "swatch")); legend.append(item); });
   }
   function applyZoom() {

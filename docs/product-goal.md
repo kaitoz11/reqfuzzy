@@ -24,12 +24,8 @@ Reusable payloads, integrated in PR #19 at `d96b0f7`, extend campaigns with type
 
 Integration agreement: the user authorized merging these and future reviewed changes with passing CI into `feat/req-fuzzer`. Continue under that standing approval rather than asking for each subsequent integration.
 
-The complete goal remains unproven. These gaps still matter:
+Multipart and binary scripting in [PR #20](https://github.com/kaitoz11/reqfuzzy/pull/20) extend dependencies, binding, mutation, and observed proof to text fields, raw file bytes, full filenames, and part media types. A bounded editor preserves untouched bytes and replaces colliding boundaries before signing. JavaScript exposes binary request/response representations and byte SHA/HMAC. [Upload acceptance](acceptance/multipart.md) records real capture/import, fresh state, signed binary bytes, secure rejection versus unsafe acceptance, downstream checks, and reconstruction. Review corrected a named-field disposition/proof issue and approved the final regressions. Full local race/floor/vet/build and browser checks passed; remote review/CI remains the development integration gate.
 
-- Third-party acceptance now exists for Juice Shop's checkout API; broader application compatibility remains unproven.
-- Multipart dependencies/mutations remain outside current coverage. Path, form, named cookie, and reusable payload/template capabilities are implemented.
-- Controlled recovery, generated payloads, and polling are implemented, and the visual authoring loop covers both the reference and Juice Shop projects. Complete PayInt corpus parity and distributed execution are not prerequisites for the first useful tool.
+The [operator-workflow audit](operator-workflow-audit.md) maps the original requirements to implementation and application evidence. All required outcomes for the initial scriptable stateful testing tool now have evidence: capture/import, inferred and authored visual flows, dynamic scripts, fresh-state request morphing, downstream checks, protected evidence, and reconstruction. Final delivery depends on the reviewed multipart change passing CI and merging into `feat/req-fuzzer`.
 
-No completion claim should rely on CI alone. It must demonstrate the operator workflow on an independent reference API with changing tokens/nonces, signing, rejected and accepted mutations, and downstream invariant checks; then validate it on an operator-provided capture when one is available.
-
-Next delivery priority is multipart binding/inference/mutation. Prefer core capability over more acceptance variants for the already demonstrated journeys.
+Broader application compatibility and full PayInt corpus/DSL parity remain future work. Distributed execution and a complete Postman collection/API implementation are outside this delivery. No operator capture was available; the user delegated application selection and pinned local Juice Shop provides independent third-party acceptance. The development branch is not yet a release on `main`.

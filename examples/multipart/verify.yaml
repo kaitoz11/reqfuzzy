@@ -1,0 +1,7 @@
+name: stored-upload
+steps:
+  - id: state
+    request: state
+    expect_status: 200
+    bind:
+      - {location: header, path: Authorization, variable: token, prefix: "Bearer "}

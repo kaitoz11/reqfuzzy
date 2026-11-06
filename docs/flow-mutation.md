@@ -140,3 +140,5 @@ func main() {
 `Runner.Run` is available when only one execution is needed. Its optional `StepMutation` targets exactly one step. `Runner.Compare` always replays prerequisite steps in both runs. A client factory can select different accounts with `actor`, while reusing each account's client within one run.
 
 Results contain request headers and bodies as prepared by the flow and hooks, before the HTTP transport adds jar cookies, plus the received response body. Treat them as sensitive when printing or persisting them. Raw request files alone can be used to author a flow; automatic flow inference will need captured responses as well.
+
+Multipart text, base64 file bytes, full filenames, and part media types use the same flow/mutation APIs. See [multipart locations](request-locations.md#multipart-bodies) and [binary script representations](script-hooks.md).

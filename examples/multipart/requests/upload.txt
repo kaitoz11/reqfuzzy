@@ -1,0 +1,16 @@
+POST /upload HTTP/1.1
+Host: 127.0.0.1:8099
+Authorization: Bearer captured-token
+Content-Type: multipart/form-data; boundary=CapturedUpload
+X-Signature: stale
+
+--CapturedUpload
+Content-Disposition: form-data; name="nonce"
+
+captured-nonce
+--CapturedUpload
+Content-Disposition: form-data; name="file"; filename="note.bin"
+Content-Type: application/octet-stream
+
+seed-data
+--CapturedUpload--

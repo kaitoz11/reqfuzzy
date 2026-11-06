@@ -1,0 +1,23 @@
+name: signed-binary-upload
+steps:
+  - id: session
+    request: session
+    expect_status: 200
+    extract:
+      - {name: token, json: token}
+      - {name: nonce, json: nonce}
+      - {name: signing_key, json: signing_key}
+      - {name: filename, json: filename}
+      - {name: media_type, json: media_type}
+      - {name: file_data, json: file_data}
+  - id: upload
+    request: upload
+    expect_status: 201
+    bind:
+      - {location: header, path: Authorization, variable: token, prefix: "Bearer "}
+      - {location: multipart, path: nonce, variable: nonce}
+      - {location: multipart-filename, path: file, variable: filename}
+      - {location: multipart-content-type, path: file, variable: media_type}
+      - {location: multipart-file, path: file, variable: file_data}
+    before_send: sign
+    after_response: acknowledge

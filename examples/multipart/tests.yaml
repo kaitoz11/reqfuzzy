@@ -1,0 +1,11 @@
+version: 1
+name: filenames-stay-inside-upload-directory
+target: {step: upload, location: multipart-filename, path: file}
+observe_statuses: [201, 400, 422]
+verify: verify.yaml
+payloads:
+  - id: traversal
+    action: set
+    values: ["../outside.bin", "../../another.bin"]
+checks:
+  - {id: stored-path-safe, phase: verify, step: state, select: json, path: unsafe, op: eq, value: false}

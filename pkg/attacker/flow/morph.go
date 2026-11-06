@@ -11,6 +11,7 @@ import (
 	"github.com/kaitoz11/reqfuzzy/pkg/attacker"
 	"github.com/kaitoz11/reqfuzzy/pkg/attacker/cookiefield"
 	"github.com/kaitoz11/reqfuzzy/pkg/attacker/jsonutil"
+	"github.com/kaitoz11/reqfuzzy/pkg/attacker/multipartbody"
 	"github.com/kaitoz11/reqfuzzy/pkg/attacker/urlform"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
@@ -35,6 +36,10 @@ func BuildMutation(spec MutationSpec) (Mutation, error) {
 		}
 	}
 	switch spec.Location {
+	case "multipart", "multipart-file", "multipart-filename", "multipart-content-type":
+		if _, _, err := multipartbody.Address(spec.Path); err != nil {
+			return nil, err
+		}
 	case "cookie":
 		if err := cookiefield.Valid(spec.Path, ""); err != nil {
 			return nil, err
@@ -90,8 +95,19 @@ func BuildMutation(spec MutationSpec) (Mutation, error) {
 				return nil, err
 			}
 		}
+		if multipartbody.Location(spec.Location) {
+			if spec.Location == "multipart-file" && gjson.ParseBytes(payload.RawJSON).Type != gjson.String {
+				return nil, fmt.Errorf("multipart file mutation needs a base64 string")
+			}
+			if err := multipartbody.ValidValue(spec.Location, payload.Text); err != nil {
+				return nil, err
+			}
+		}
 	}
 	return func(request attacker.Request, _ Variables) error {
+		if multipartbody.Location(spec.Location) {
+			return applyMultipart(request, spec.Location, spec.Path, spec.Action, payload.Text)
+		}
 		if spec.Action == "add" || spec.Action == "multiply" {
 			current, err := CurrentMutationValue(request, spec.Location, spec.Path)
 			if err != nil {
@@ -217,6 +233,8 @@ func jsonMutationApplied(request attacker.Request, lookup string, expected []byt
 
 func existingValue(request attacker.Request, location, path string, uniqueString bool) (Value, error) {
 	switch location {
+	case "multipart", "multipart-file", "multipart-filename", "multipart-content-type":
+		return currentMultipart(request, location, path)
 	case "cookie":
 		values, err := request.CookieValues(path)
 		if err != nil {

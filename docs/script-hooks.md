@@ -47,11 +47,13 @@ Bindings and the selected mutation run before `beforeSend`, so the signature cov
 
 | API | Behavior |
 |---|---|
-| `ctx.request.method`, `.url`, `.body` | Mutable strings in `beforeSend`. URL is a relative path including the effective query. Body is UTF-8 text. |
+| `ctx.request.method`, `.url`, `.body` | Mutable strings in `beforeSend`. URL is a relative path including the effective query. Body is UTF-8 text, or null for binary. |
+| `ctx.request.bodyBase64` | Mutable base64 string for the exact prepared body bytes. |
 | `ctx.request.getHeader(name)` | Read the first value, ignoring header-name case. |
 | `ctx.request.setHeader(name, value)` | Replace all case variants with one validated value. |
 | `ctx.request.removeHeader(name)` | Remove all case variants. |
-| `ctx.response.status`, `.body`, `.getHeader(name)` | Read response data in `afterResponse`. |
+| `ctx.response.status`, `.body`, `.getHeader(name)` | Read response data in `afterResponse`; body is null for binary. |
+| `ctx.response.bodyBase64` | Read-only base64 of the response bytes. |
 | `ctx.flow.step`, `.visit`, `.limit` | Current logical step and its one-based bounded visit, in both hook types. |
 | `ctx.flow.next(name)` / `.stop()` | Choose a declared/default destination or permitted end in `afterResponse`; the choice is staged until callback success. |
 | `ctx.vars.get(name)` | Read a scalar; throws when missing or outside the supported safe JS number range. |
@@ -60,11 +62,13 @@ Bindings and the selected mutation run before `beforeSend`, so the signature cov
 | `ctx.vars.setRaw(name, jsonText)` | Store a validated raw JSON scalar without numeric conversion. |
 | `crypto.sha256(text)` | UTF-8 SHA-256, hexadecimal output. |
 | `crypto.hmacSha256(key, text)` | UTF-8 HMAC-SHA-256, hexadecimal output. |
+| `crypto.sha256Bytes(base64Data)` | SHA-256 of decoded bytes, hexadecimal output. |
+| `crypto.hmacSha256Bytes(base64Key, base64Data)` | HMAC-SHA-256 of decoded bytes/key, hexadecimal output. |
 | `encoding.base64Encode(text)` / `.base64Decode(text)` | Encode UTF-8 text or decode to valid UTF-8 text. |
 
 Each invocation receives a fresh JavaScript VM. Store cross-step state explicitly through `ctx.vars`; JavaScript globals are not shared. Request and variable edits are staged until the hook succeeds. Exceptions, invalid edits, Promise returns, or deadlines discard the staged changes and stop the affected run. All named callback exports are checked before target requests.
 
-Hooks return no value and cannot be asynchronous. The default deadline is one second per invocation; the CLI's overall timeout also bounds preflight execution. Request and response bodies entering JavaScript must be UTF-8. Use the Go API for binary transformations and additional crypto libraries.
+Hooks return no value and cannot be asynchronous. The default deadline is one second per invocation; the CLI's overall timeout also bounds preflight execution. Binary bodies use explicit base64 representations. Unchanged representations preserve exact bytes; edit either request body representation or both consistently. Deleted/invalid properties and conflicting edits fail atomically. `body: null` is only the unchanged representation of an original binary body. Text helpers still encode/decode UTF-8; byte crypto accepts base64. See the [signed upload example](../examples/multipart/README.md).
 
 ## Numeric IDs
 

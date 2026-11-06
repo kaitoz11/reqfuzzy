@@ -1,6 +1,7 @@
 package capture
 
 import (
+	"encoding/base64"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/kaitoz11/reqfuzzy/pkg/attacker/cookiefield"
 	"github.com/kaitoz11/reqfuzzy/pkg/attacker/flow"
+	"github.com/kaitoz11/reqfuzzy/pkg/attacker/multipartbody"
 	"github.com/kaitoz11/reqfuzzy/pkg/attacker/rawreq"
 	"github.com/kaitoz11/reqfuzzy/pkg/attacker/urlform"
 	"gopkg.in/yaml.v3"
@@ -227,7 +229,35 @@ func requestValues(exchange Exchange) ([]requestValue, error) {
 			}
 		}
 	}
-	if urlform.IsForm(headers) {
+	if multipartbody.IsMultipart(headers) {
+		if doc, err := multipartbody.Parse(headers, parsed.Body); err == nil {
+			counts := make(map[string]int)
+			for _, part := range doc.Parts {
+				counts[part.Name]++
+			}
+			for _, part := range doc.Parts {
+				if part.Name == "" || counts[part.Name] != 1 {
+					continue
+				}
+				path := multipartbody.NamedAddress(part.Name)
+				for _, location := range []string{"multipart", "multipart-file", "multipart-filename", "multipart-content-type"} {
+					value, found, err := doc.Value(location, path)
+					if err != nil || !found {
+						continue
+					}
+					kind := "string"
+					text := string(value)
+					if location == "multipart" {
+						kind = ""
+					}
+					if location == "multipart-file" {
+						text = base64.StdEncoding.EncodeToString(value)
+					}
+					values = append(values, requestValue{Location: location, Path: path, Kind: kind, Text: text})
+				}
+			}
+		}
+	} else if urlform.IsForm(headers) {
 		fields, err := urlform.Parse(headers, parsed.Body)
 		if err == nil {
 			keys := make([]string, 0, len(fields))

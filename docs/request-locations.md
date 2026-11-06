@@ -9,6 +9,10 @@ Use the same location names in step `bind` entries, `flow compare --location`, a
 | `query` | Decoded query key | Replace all selected occurrences | All selected occurrences | One existing value |
 | `path` | Quoted zero-based segment slot | Replace one escaped segment | Delete the selected slot | Existing segment text |
 | `form` | Decoded URL-encoded body key | Replace all selected occurrences | All selected occurrences | One existing value |
+| `multipart` | Unique part name or `index:N` | UTF-8 text; can create a named text part | Selected whole text part | Existing text bytes |
+| `multipart-file` | Unique part name or `index:N` | Base64 file bytes; existing file required | Selected whole file part | Decoded bytes, encoded as base64 input |
+| `multipart-filename` | Unique part name or `index:N` | Full filename; can create an empty file placeholder | Filename attribute; content stays | Existing filename text |
+| `multipart-content-type` | Unique part name or `index:N` | Part Content-Type header | Part Content-Type header | Existing header text |
 | `cookie` | Case-sensitive cookie name | Override all selected-name values for this request | Suppress selected-name values for this request | One current value from the request/client/jar |
 
 Remove requires an existing target and takes no value. Append/prepend take string payloads. Null is a JSON-only value. Transport-managed framing headers and Host removal remain unsupported. Existing captured Cookie headers are still removed; current request bindings, client defaults, and the actor's live jar provide cookies.
@@ -55,7 +59,7 @@ In a campaign, use `target: {step: read, location: path, path: "2"}`. A set/appe
 
 ## URL-encoded form bodies
 
-`form` supports UTF-8 `application/x-www-form-urlencoded` with one unambiguous Content-Type. Non-UTF-8 charsets, malformed percent encoding, invalid decoded UTF-8, and non-identity Content-Encoding are rejected. Multipart bodies require separate support.
+`form` supports UTF-8 `application/x-www-form-urlencoded` with one unambiguous Content-Type. Non-UTF-8 charsets, malformed percent encoding, invalid decoded UTF-8, and non-identity Content-Encoding are rejected. For multipart bodies, use the locations below.
 
 For a captured `POST /submit` with body `csrf=old&amount=10&note=hello%20world`:
 
@@ -81,3 +85,23 @@ Static location validation runs before clients or prerequisites in authored flow
 Campaign proof parses the actual captured sent body with its actual headers. A restored field, unavailable body, unsupported encoding, or changed media type is unassessable. Normal opaque form bodies are omitted from redacted evidence with hashes retained; the existing JSON-body redaction policy applies when bytes are valid JSON. Sensitive evidence is an explicit opt-in.
 
 HAR inference uses the existing unique-source and minimum-length rules for form values. Repeated form keys and malformed/unsupported form encoding are left unresolved; import itself remains offline. Inferred and authored form dependencies appear in `flow show`.
+
+## Multipart bodies
+
+Use `multipart/form-data` with one boundary-bearing Content-Type and identity outer Content-Encoding. Addresses are unique literal part names; `name:literal` escapes names beginning with `name:` or `index:`. `index:N` selects an absolute zero-based part ordinal from 0 through 999, including repeated names. Names are case sensitive; duplicate named selection fails. Named selectors recognize only `form-data` dispositions; explicit ordinals can address other raw parts. Deleting a whole part shifts later ordinals, so proof compares the complete resulting body for ordinal removals.
+
+```yaml
+bind:
+  - {location: multipart, path: nonce, variable: nonce}
+  - {location: multipart-filename, path: file, variable: filename}
+  - {location: multipart-file, path: file, variable: file_data}
+before_send: sign
+```
+
+`file_data` must be a base64 string and cannot use a binding prefix. File append/prepend decode both inputs and combine bytes. Filename set can create an empty named file placeholder before a later file-content binding; full logical filenames such as `../test.bin` remain intact. Filename removal retains the part's bytes; text/file removal deletes the selected whole part. Text and metadata use scalar text; metadata control bytes are rejected. Null and arithmetic remain JSON-only.
+
+The bounded raw parser supports CRLF framing, preamble/epilogue, at most 1,000 parts, 64 KiB per part's headers, and 16 MiB total. Untouched part bytes, raw headers, order, and delimiter suffixes are preserved. A payload colliding with the original delimiter causes deterministic boundary replacement before signing. Selected content supports identity Content-Encoding and binary/8bit/valid 7bit transfer encodings; other encoded content is refused. Unselected opaque parts retain their bytes.
+
+Static preflight checks the captured structure and unambiguous address before clients. Runtime edits validate the result before applying it. Campaign proof parses actual sent bytes and headers; unavailable bodies, malformed/ambiguous parts, overwritten values, or unsupported content encodings remain inconclusive. Normal evidence hashes/omits opaque multipart bodies; `--include-sensitive` stores byte-exact base64 privately. HAR text represents only its supplied UTF-8 bytes; params-only multipart cannot recover file data. Raw request files can carry arbitrary binary bytes.
+
+See the [upload project](../examples/multipart/README.md) for binary signing, generated filename cases, downstream state checks, and reconstruction.

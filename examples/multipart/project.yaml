@@ -1,0 +1,6 @@
+version: 1
+origin: http://127.0.0.1:8099
+requests:
+  session: requests/session.txt
+  upload: requests/upload.txt
+  state: requests/state.txt

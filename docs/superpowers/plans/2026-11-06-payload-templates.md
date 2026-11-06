@@ -12,6 +12,6 @@
 - [x] Connect resolved mutations to campaign preflight/run and declare renderer variable dependencies before the target. Retain per-visit proof and source/index metadata.
 - [x] Add contained CLI resolver/fingerprints and `flow plan`; prove no target/hook execution, bounded counts, generated-case reconstruction, and input drift refusal.
 - [x] Extend map reference metadata for payload variables; add reusable finance/text examples and operator documentation.
-- [ ] Complete meaningful race/vet/floor/build/browser checks, read-only review, and actual existing-journey acceptance. Publish, poll the specific CI run, and merge after passing checks. Update status and leave broader multipart work active.
+- [x] Complete meaningful race/vet/floor/build/browser checks, read-only review, and actual existing-journey acceptance. Publish, poll the specific CI run, and merge after passing checks. Update status and leave broader multipart work active.
 
-Local race/vet/Go-1.24/build/browser gates and native generated-case run/replay passed. Review's memory and null-encoder findings were fixed and verified. Publication/CI/integration is the remaining delivery step.
+Delivered in PR #19, merged at `d96b0f7`. Local race/vet/Go-1.24/build/browser gates and native generated-case run/replay passed. Review's memory and null-encoder findings were fixed and verified. CI run `42176251910` passed Go 1.24/stable and browser checks. Multipart work remains active.

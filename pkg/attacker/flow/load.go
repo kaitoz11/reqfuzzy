@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/kaitoz11/reqfuzzy/pkg/attacker/cookiefield"
 	"io"
 	"strings"
+
+	"github.com/kaitoz11/reqfuzzy/pkg/attacker/cookiefield"
+	"github.com/kaitoz11/reqfuzzy/pkg/attacker/multipartbody"
 
 	"gopkg.in/yaml.v3"
 )
@@ -98,9 +100,17 @@ func ValidateWithVariables(candidate Flow, initial Variables) error {
 				return fmt.Errorf("flow step %q: binding path and variable are required", step.ID)
 			}
 			switch binding.Location {
-			case "header", "query", "json", "path", "form", "cookie":
+			case "header", "query", "json", "path", "form", "cookie", "multipart", "multipart-file", "multipart-filename", "multipart-content-type":
 			default:
 				return fmt.Errorf("flow step %q: unsupported binding location %q", step.ID, binding.Location)
+			}
+			if multipartbody.Location(binding.Location) {
+				if _, _, err := multipartbody.Address(binding.Path); err != nil {
+					return err
+				}
+				if binding.Location == "multipart-file" && binding.Prefix != "" {
+					return fmt.Errorf("binary file binding cannot use prefix")
+				}
 			}
 			if binding.Location == "cookie" {
 				if err := cookiefield.Valid(binding.Path, ""); err != nil {

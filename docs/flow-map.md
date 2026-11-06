@@ -20,7 +20,7 @@ The artifact contains flow configuration, including binding prefixes, registered
 
 The graph places requests in execution order within actor lanes. Gray arrows show request order; colored, labeled arrows show variable dependencies and their locations. The map describes the authored flow, not the outcome of a particular run. Click a node to edit its request, actor, status, hooks, response extractions, provided variables, and bindings. Click an edge to focus its binding.
 
-All six locations are available: JSON, header, query, path, form, and named cookie. Extractions support JSON selectors and response `Set-Cookie` names. Provided variables require an after-response hook. Add, delete, or reorder steps using registered request templates; request files and script source remain in the project.
+All ten locations are available: JSON, header, query, path, form, named cookie, multipart text/file/filename/content-type. Multipart addresses support unique names and explicit ordinals; file bindings use base64 without a prefix. Extractions support JSON selectors and response `Set-Cookie` names. Provided variables require an after-response hook. Add, delete, or reorder steps using registered request templates; request files and script source remain in the project.
 
 Flow control fields edit default next, permitted script routes, visit limits, and accepted status sets. Extraction fields also support optional values and status gates. Backward/self routes use separate control connectors; data arrows retain their variable meaning. The request-bound summary includes repeated visits. See [control semantics](flow-control.md); conditions themselves remain in the response hook source.
 

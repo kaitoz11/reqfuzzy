@@ -317,6 +317,11 @@ func failRun(result RunResult, stepID string, kind ErrorKind, err error) (RunRes
 
 func bindValue(request attacker.Request, binding Binding, value Value) error {
 	switch binding.Location {
+	case "multipart", "multipart-file", "multipart-filename", "multipart-content-type":
+		if binding.Location == "multipart-file" && gjson.ParseBytes(value.RawJSON).Type != gjson.String {
+			return fmt.Errorf("multipart file binding requires a base64 string")
+		}
+		return applyMultipart(request, binding.Location, binding.Path, "set", binding.Prefix+value.Text)
 	case "cookie":
 		return request.SetCookieValue(binding.Path, binding.Prefix+value.Text)
 	case "path":

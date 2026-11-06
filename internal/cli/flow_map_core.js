@@ -1,6 +1,6 @@
 "use strict";
 var FlowMapCore = (function () {
-  var locations = ["json", "header", "query", "path", "form", "cookie"];
+  var locations = ["json", "header", "query", "path", "form", "cookie", "multipart", "multipart-file", "multipart-filename", "multipart-content-type"];
   var cookieName = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
   function clone(value) { return JSON.parse(JSON.stringify(value)); }
   function text(value) { return typeof value === "string"; }
@@ -40,8 +40,12 @@ var FlowMapCore = (function () {
           if (!text(binding.path) || !binding.path.length) error(key, label + ": binding address is required");
           if (!filled(binding.variable) || !sources.has(binding.variable)) error(key, label + ": variable " + (binding.variable || "(empty)") + " needs an earlier source");
           if (binding.prefix !== undefined && !text(binding.prefix)) error(key, label + ": binding prefix must be text");
-          if (binding.location === "json" && binding.prefix) error(key, label + ": JSON bindings cannot use a prefix");
+          if ((binding.location === "json" || binding.location === "multipart-file") && binding.prefix) error(key, label + ": JSON/file bindings cannot use a prefix");
           if (binding.location === "path" && (!/^(0|[1-9][0-9]*)$/.test(binding.path) || !Number.isSafeInteger(Number(binding.path)))) error(key, label + ": path address must be a nonnegative segment index");
+          if (text(binding.location) && binding.location.indexOf("multipart") === 0 && text(binding.path)) {
+            if (binding.path.indexOf("index:") === 0) { if (!/^index:(0|[1-9][0-9]*)$/.test(binding.path) || Number(binding.path.slice(6)) >= 1000) error(key, label + ": multipart index must be 0 through 999"); }
+            else { var partName = binding.path.indexOf("name:") === 0 ? binding.path.slice(5) : binding.path; if (!partName.length || /[\r\n\u0000]/.test(partName)) error(key, label + ": invalid multipart name"); }
+          }
           if (binding.location === "cookie" && !cookieName.test(binding.path || "")) error(key, label + ": invalid cookie name");
           if (sources.has(binding.variable)) edges.push({ from: sources.get(binding.variable).key, to: key, variable: binding.variable, location: binding.location, path: binding.path, bindingIndex: bindingIndex });
         });

@@ -126,3 +126,23 @@ func TestFlowMapProtectsRuntimePayloadVariables(t *testing.T) {
 		t.Fatal("editor allowed deletion of a payload-only variable source")
 	}
 }
+
+func TestFlowMapMultipartAddressesAndBinaryPrefix(t *testing.T) {
+	for _, tc := range []struct {
+		location, path, prefix string
+		valid                  bool
+	}{
+		{"multipart-file", "file", "", true}, {"multipart-file", "file", "x", false},
+		{"multipart-filename", "index:2", "", true}, {"multipart-content-type", "name:index:2", "", true},
+		{"multipart", "index:1000", "", false}, {"multipart", "index:01", "", false}, {"multipart", "name:", "", false},
+	} {
+		vm := mapVM(t)
+		vm.Set("location", tc.location)
+		vm.Set("address", tc.path)
+		vm.Set("prefix", tc.prefix)
+		got := mapEval(t, vm, `project.flows[0].definition.steps[1].bind[1]={location:location,path:address,variable:"signed",prefix:prefix};String(FlowMapCore.analyze(project).valid);`)
+		if (got == "true") != tc.valid {
+			t.Fatalf("%+v valid=%s", tc, got)
+		}
+	}
+}

@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/kaitoz11/reqfuzzy/pkg/attacker/cookiefield"
+	"github.com/kaitoz11/reqfuzzy/pkg/attacker/multipartbody"
 	"github.com/kaitoz11/reqfuzzy/pkg/attacker/rawreq"
 	"github.com/kaitoz11/reqfuzzy/pkg/attacker/urlform"
 )
@@ -34,6 +35,16 @@ func (r Runner) PreflightTarget(definition Flow, stepID, location, path string) 
 
 func validateTarget(parsed *rawreq.ParsedRawRequest, location, path string) error {
 	switch location {
+	case "multipart", "multipart-file", "multipart-filename", "multipart-content-type":
+		headers := make(http.Header)
+		for _, header := range parsed.Headers {
+			headers.Add(header.Key, header.Value)
+		}
+		doc, err := multipartbody.Parse(headers, parsed.Body)
+		if err != nil {
+			return err
+		}
+		return doc.ValidateAddress(path)
 	case "cookie":
 		return cookiefield.Valid(path, "")
 	case "path":

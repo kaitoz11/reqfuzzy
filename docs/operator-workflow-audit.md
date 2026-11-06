@@ -1,0 +1,21 @@
+# Operator workflow audit — 2026-11-06
+
+The current goal is a scriptable tool for testing stateful API journeys, implemented in reqfuzzy's existing Go runtime. The operator requirements are dynamic request testing, both inferred and authored/visual API flows, scripting comparable to the needed Postman workflow, and PayInt-style request morphing. The historical separate Python kvar design contains unratified proposals and is not the current implementation contract.
+
+| Required outcome | Implementation and evidence |
+|---|---|
+| Capture/import real HTTP traffic | Offline HAR import, raw request storage, multi-origin selection, response content/cookies; actual captured reference, upload, and third-party checkout integrations. |
+| Infer dependencies conservatively | Unique response scalars/Set-Cookie → ten request locations, source thresholds and ambiguity refusal. Short checkout IDs are explicit authored bindings. |
+| Author and visualize flows | Offline `flow map` edits journey/verification steps, actors, bindings/extractions, hooks, routes/status gates/limits; validated export reloads through Go. Browser checks cover reference, checkout, recovery, payloads, uploads, hostile labels, and zero network requests. |
+| Script dynamic preparation and responses | Isolated synchronous JavaScript before/after hooks, staged scalar/raw state, final body signing, byte crypto, binary bodies, explicit bounded response routing and polling. |
+| Morph requests using fresh state | Set/remove/append/prepend across JSON/header/query/path/form/cookie/multipart text/file/filename/type; exact JSON add/multiply; reusable typed/file/range payloads, libraries, fresh-state templates, encoders. Bind → mutate → sign repeats per target visit. |
+| Preserve valid prerequisites and observe effects | Fresh trial sessions, actor cookie isolation, changing nonce/token/key state, accepted/rejected status handling, same-session downstream verification; baseline comparisons and typed occurrence-aware assertions. |
+| Produce assessable/repeatable results | Actual sent-value proof on every mutation attempt, explicit pass/fail/inconclusive verdicts, protected/redacted artifacts, stable generated IDs, source fingerprints, selected-case reconstruction with fresh state, offline budgets and hard execution bounds. |
+| Validate beyond a custom mock | [Pinned local Juice Shop checkout](acceptance/juice-shop.md) accepted negative quantity and persisted total −19.90; actual capture/import/campaign/reconstruction used fresh accounts. No operator capture was available, and the user delegated target selection. |
+| Deliver usable commands/examples | README build command; import/show/map/plan/run/compare/test/replay; self-contained projects for scripting, signed balance checks, recovery, payloads, multipart uploads, and Juice Shop. |
+
+The signed reference and recovery acceptance prove nonce/key renewal, signing, secure rejection, vulnerable balance changes, downstream checks, every-attempt proof, and reconstruction. [Multipart acceptance](acceptance/multipart.md) extends that workflow to binary uploads. Go 1.24/stable CI and code review protect development integration; they supplement application evidence rather than establish product completion alone.
+
+The initial operator workflow has implementation and executable evidence for every row. Completion requires the multipart change to finish review and pass CI before merging to `feat/req-fuzzer`. This audit does not authorize merging development into `main`.
+
+Broader application compatibility, direct execution of the complete legacy PayInt DSL/corpus, automatic vulnerability oracles, distributed/concurrent execution, live proxy capture, and an online collaborative UI remain possible future projects. They are not claims of this delivery. Inference is conservative; assertions and target-specific authentication/signing remain operator-authored. Postman compatibility is the scripting/flow workflow described above, not support for its complete API or collection format. No production-ready or universal scanner claim follows from these examples.

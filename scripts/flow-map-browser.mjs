@@ -19,6 +19,8 @@ const referenceMap = path.join(artifacts, 'reference.html');
 const juiceMap = path.join(artifacts, 'juice-shop.html');
 const recoveryMap = path.join(artifacts, 'recovery.html');
 const payloadMap = path.join(artifacts, 'payloads.html');
+const multipartMap = path.join(artifacts, 'multipart.html');
+cli('flow','map','--project',path.join(root,'examples/multipart'),'--test','tests.yaml','--out',multipartMap);
 cli('flow', 'map', '--project', reference, '--test', 'tests.yaml', '--out', referenceMap);
 cli('flow', 'map', '--project', path.join(root, 'examples/juice-shop'), '--test', 'tests.yaml', '--out', juiceMap);
 cli('flow', 'map', '--project', path.join(root, 'examples/session-recovery'), '--test', 'tests.yaml', '--out', recoveryMap);
@@ -162,6 +164,21 @@ try {
   await node('Journey','nonce').click();await field('flow:1-extract-0-name').fill('renamed_nonce');
   assert.equal(await isExportable(),false,'payload-only variable dependency must remain valid');
   await page.locator('#undo').click();assert.equal(await isExportable(),true);
+
+  await page.goto(pathToFileURL(multipartMap).href);await page.waitForSelector('g.node');
+  await node('Journey','upload').click();
+  assert.equal(await field('flow:1-bind-4-location').inputValue(),'multipart-file');
+  await field('flow:1-bind-4-prefix').fill('bad');assert.equal(await isExportable(),false);
+  await field('flow:1-bind-4-prefix').fill('');assert.equal(await isExportable(),true);
+  await field('flow:1-bind-4-path').fill('index:01');assert.equal(await isExportable(),false);
+  await field('flow:1-bind-4-path').fill('index:1');assert.equal(await isExportable(),true);
+  const multipartDownloadEvent=page.waitForEvent('download');await page.locator('#download').click();
+  const multipartDownload=await multipartDownloadEvent;const multipartExport=path.join(artifacts,'multipart-edited.yaml');await multipartDownload.saveAs(multipartExport);
+  const multipartDefinition=JSON.parse(await fs.readFile(multipartExport,'utf8'));
+  assert.equal(multipartDefinition.steps[1].bind[4].path,'index:1');
+  const multipartProject=path.join(artifacts,'multipart-project');await fs.cp(path.join(root,'examples/multipart'),multipartProject,{recursive:true});await fs.copyFile(multipartExport,path.join(multipartProject,'flow.yaml'));
+  assert.equal(cli('flow','show','--project',multipartProject).result.edges[4].location,'multipart-file');
+  await page.screenshot({path:path.join(artifacts,'multipart-desktop.png'),fullPage:true});
 
   const payload = JSON.parse((await fs.readFile(referenceMap, 'utf8')).match(/<script id="project-data" type="application\/json">([\s\S]*?)<\/script>/)[1]);
   const hostileProject = path.join(artifacts, 'hostile-project');

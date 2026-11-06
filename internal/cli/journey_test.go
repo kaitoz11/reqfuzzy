@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/hmac"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -17,6 +18,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/kaitoz11/reqfuzzy/internal/reference"
 	"github.com/kaitoz11/reqfuzzy/pkg/attacker/campaign"
@@ -58,7 +60,7 @@ func (c *captureTransport) RoundTrip(request *http.Request) (*http.Response, err
 	}
 	captured := map[string]any{"method": request.Method, "url": request.URL.String(), "headers": headers}
 	if len(body) > 0 {
-		captured["postData"] = map[string]string{"mimeType": "application/json", "text": string(body)}
+		captured["postData"] = map[string]string{"mimeType": request.Header.Get("Content-Type"), "text": string(body)}
 	}
 	responseHeaders := []map[string]string{}
 	for name, values := range response.Header {
@@ -66,7 +68,12 @@ func (c *captureTransport) RoundTrip(request *http.Request) (*http.Response, err
 			responseHeaders = append(responseHeaders, map[string]string{"name": name, "value": value})
 		}
 	}
-	c.entries = append(c.entries, map[string]any{"request": captured, "response": map[string]any{"status": response.StatusCode, "headers": responseHeaders, "content": map[string]string{"text": string(received), "mimeType": "application/json"}}})
+	content := map[string]string{"text": string(received), "mimeType": response.Header.Get("Content-Type")}
+	if !utf8.Valid(received) {
+		content["text"] = base64.StdEncoding.EncodeToString(received)
+		content["encoding"] = "base64"
+	}
+	c.entries = append(c.entries, map[string]any{"request": captured, "response": map[string]any{"status": response.StatusCode, "headers": responseHeaders, "content": content}})
 	return response, nil
 }
 

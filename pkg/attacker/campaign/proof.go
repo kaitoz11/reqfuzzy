@@ -11,6 +11,7 @@ import (
 	"github.com/kaitoz11/reqfuzzy/pkg/attacker/cookiefield"
 	"github.com/kaitoz11/reqfuzzy/pkg/attacker/flow"
 	"github.com/kaitoz11/reqfuzzy/pkg/attacker/jsonutil"
+	"github.com/kaitoz11/reqfuzzy/pkg/attacker/multipartbody"
 	"github.com/kaitoz11/reqfuzzy/pkg/attacker/urlform"
 	"github.com/tidwall/gjson"
 )
@@ -22,6 +23,25 @@ type selection struct {
 
 func selectRequest(message flow.RequestSnapshot, target Target, action string) (selection, error) {
 	switch target.Location {
+	case "multipart", "multipart-file", "multipart-filename", "multipart-content-type":
+		if message.BodySource == "unavailable" {
+			return selection{}, fmt.Errorf("sent multipart body is unavailable")
+		}
+		doc, err := multipartbody.Parse(message.Headers, message.Body)
+		if err != nil {
+			return selection{}, err
+		}
+		_, ordinal, err := multipartbody.Address(target.Path)
+		if err != nil {
+			return selection{}, err
+		}
+		if action == "remove" && ordinal >= 0 && (target.Location == "multipart" || target.Location == "multipart-file") {
+			// Removing an ordinal shifts later slots. Prove the whole resulting body,
+			// after validating that the observed Content-Type can actually parse it.
+			return selection{true, message.Body}, nil
+		}
+		value, found, err := doc.Value(target.Location, target.Path)
+		return selection{found, value}, err
 	case "cookie":
 		cookies, err := cookiefield.Parse(message.Headers)
 		if err != nil {

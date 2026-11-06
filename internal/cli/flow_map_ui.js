@@ -2,7 +2,7 @@
 (function () {
   var core = FlowMapCore, initial = JSON.parse(document.getElementById("project-data").textContent);
   var state = { project: core.clone(initial), phase: "flow", index: 0, search: "", location: "", zoom: 1, undo: [], redo: [] };
-  var palette = { json: "#43783a", header: "#2864c7", query: "#536f99", path: "#7555b5", form: "#11786c", cookie: "#b75621" };
+  var palette = { json: "#43783a", header: "#2864c7", query: "#536f99", path: "#7555b5", form: "#11786c", cookie: "#b75621", multipart: "#11786c", "multipart-file": "#7555b5", "multipart-filename": "#996029", "multipart-content-type": "#536f99" };
   var graphWidth = 800, graphHeight = 600;
   function $(id) { return document.getElementById(id); }
   function element(tag, text, className) {
@@ -181,6 +181,7 @@
       field(entry, "Variable", binding.variable, row + "variable", function (value) { binding.variable = value; }, variables);
       var columns = element("div", null, "field-grid"); entry.append(columns);
       field(columns, "Location", binding.location, row + "location", function (value) { binding.location = value; }, core.locations);
+      if (binding.location.indexOf("multipart") === 0) columns.append(element("p", binding.location === "multipart-file" ? "File bytes use a base64 string with no prefix. Address a unique name, name:literal, or index:N (zero-based)." : "Address a unique part name, name:literal, or index:N (zero-based). Filenames retain path components.", "muted"));
       field(columns, "Address", binding.path, row + "path", function (value) { binding.path = value; });
       field(entry, "Prefix" + (binding.location === "json" ? " (empty for JSON)" : ""), binding.prefix || "", row + "prefix", function (value) { if (value) binding.prefix = value; else delete binding.prefix; });
       var source = analysis.sources.get(binding.variable), info = element("div", null, "entry-foot");

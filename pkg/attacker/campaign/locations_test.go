@@ -1,6 +1,7 @@
 package campaign_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -24,15 +25,23 @@ func TestPathAndFormMutationProofUsesTheSentMessage(t *testing.T) {
 		{"path remove shifted segment", "path", "1", "remove", "", "GET /items/old/end HTTP/1.1\r\n\r\n"},
 		{"form set", "form", "id", "set", `"changed"`, "POST /submit HTTP/1.1\r\nContent-Type: application/x-www-form-urlencoded\r\n\r\nid=base&keep=%2f"},
 		{"form remove repeated fields", "form", "id", "remove", "", "POST /submit HTTP/1.1\r\nContent-Type: application/x-www-form-urlencoded\r\n\r\nid=base&id=other&keep=%2f"},
+		{"multipart text", "multipart", "id", "set", `"changed"`, "POST /submit HTTP/1.1\r\nContent-Type: multipart/form-data; boundary=B\r\n\r\n--B\r\nContent-Disposition: form-data; name=id\r\n\r\nbase\r\n--B--\r\n"},
+		{"multipart ordinal remove", "multipart", "index:0", "remove", "", "POST /submit HTTP/1.1\r\nContent-Type: multipart/form-data; boundary=B\r\n\r\n--B\r\nContent-Disposition: form-data; name=id\r\n\r\nbase\r\n--B\r\nContent-Disposition: form-data; name=keep\r\n\r\nlast\r\n--B--\r\n"},
+		{"multipart binary", "multipart-file", "file", "set", `"AP8="`, "POST /submit HTTP/1.1\r\nContent-Type: multipart/form-data; boundary=B\r\n\r\n--B\r\nContent-Disposition: form-data; name=file; filename=old\r\n\r\nbase\r\n--B--\r\n"},
+		{"multipart filename", "multipart-filename", "file", "set", `"../new.bin"`, "POST /submit HTTP/1.1\r\nContent-Type: multipart/form-data; boundary=B\r\n\r\n--B\r\nContent-Disposition: form-data; name=file; filename=old\r\n\r\nbase\r\n--B--\r\n"},
+		{"multipart type", "multipart-content-type", "id", "set", `"image/custom"`, "POST /submit HTTP/1.1\r\nContent-Type: multipart/form-data; boundary=B\r\n\r\n--B\r\nContent-Disposition: form-data; name=id\r\nContent-Type: text/plain\r\n\r\nbase\r\n--B--\r\n"},
 	} {
-		for _, mode := range []string{"keep", "restore", "encoding"} {
-			if mode == "encoding" && tc.location != "form" {
+		for _, mode := range []string{"keep", "restore", "encoding", "disposition"} {
+			if mode == "disposition" && !strings.HasPrefix(tc.location, "multipart") {
+				continue
+			}
+			if mode == "encoding" && tc.location != "form" && !strings.HasPrefix(tc.location, "multipart") {
 				continue
 			}
 			t.Run(fmt.Sprintf("%s/%s", tc.name, mode), func(t *testing.T) {
 				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					observed := r.URL.EscapedPath()
-					if tc.location == "form" {
+					if tc.location == "form" || strings.HasPrefix(tc.location, "multipart") {
 						body, _ := io.ReadAll(r.Body)
 						observed = string(body)
 					}
@@ -59,6 +68,9 @@ func TestPathAndFormMutationProofUsesTheSentMessage(t *testing.T) {
 							_, body, _ := strings.Cut(tc.raw, "\r\n\r\n")
 							request.SetBodyString(body)
 						}
+					}
+					if mode == "disposition" {
+						request.SetBodyBytes(bytes.ReplaceAll(request.Body, []byte("form-data;"), []byte("attachment;")))
 					}
 					if mode == "encoding" {
 						_, body, _ := strings.Cut(tc.raw, "\r\n\r\n")

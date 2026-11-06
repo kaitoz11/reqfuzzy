@@ -69,6 +69,27 @@ func (p *Program) runtime(ctx context.Context, action func(*goja.Runtime) error)
 
 func installBuiltins(vm *goja.Runtime) {
 	_ = vm.Set("crypto", map[string]any{
+		"sha256Bytes": func(encoded string) (string, error) {
+			data, err := decodeBytes(encoded)
+			if err != nil {
+				return "", err
+			}
+			digest := sha256.Sum256(data)
+			return hex.EncodeToString(digest[:]), nil
+		},
+		"hmacSha256Bytes": func(key, encoded string) (string, error) {
+			rawKey, err := decodeBytes(key)
+			if err != nil {
+				return "", err
+			}
+			data, err := decodeBytes(encoded)
+			if err != nil {
+				return "", err
+			}
+			mac := hmac.New(sha256.New, rawKey)
+			_, _ = mac.Write(data)
+			return hex.EncodeToString(mac.Sum(nil)), nil
+		},
 		"sha256": func(text string) string { digest := sha256.Sum256([]byte(text)); return hex.EncodeToString(digest[:]) },
 		"hmacSha256": func(key, text string) string {
 			mac := hmac.New(sha256.New, []byte(key))
@@ -126,9 +147,6 @@ func invoke(vm *goja.Runtime, name string, ctx *goja.Object) error {
 }
 
 func (p *Program) BeforeSend(request attacker.Request, variables flow.Variables) error {
-	if !utf8.Valid(request.Body) {
-		return fmt.Errorf("script %s: request body is not UTF-8", p.name)
-	}
 	staged := cloneVariables(variables)
 	return p.runtime(request.Context(), func(vm *goja.Runtime) error {
 		jsRequest, headers, err := requestObject(vm, request)
@@ -155,9 +173,6 @@ func (p *Program) AfterResponse(response attacker.Response, variables flow.Varia
 	if response.Response == nil || response.Response.Response == nil {
 		return fmt.Errorf("script %s: response is missing", p.name)
 	}
-	if !utf8.Valid(response.Bytes()) {
-		return fmt.Errorf("script %s: response body is not UTF-8", p.name)
-	}
 	staged := cloneVariables(variables)
 	ctx := context.Background()
 	if response.Request != nil {
@@ -166,7 +181,12 @@ func (p *Program) AfterResponse(response attacker.Response, variables flow.Varia
 	return p.runtime(ctx, func(vm *goja.Runtime) error {
 		object := vm.NewObject()
 		_ = object.Set("status", response.StatusCode)
-		_ = object.Set("body", string(response.Bytes()))
+		if utf8.Valid(response.Bytes()) {
+			_ = object.Set("body", string(response.Bytes()))
+		} else {
+			_ = object.Set("body", goja.Null())
+		}
+		_ = object.DefineDataProperty("bodyBase64", vm.ToValue(base64.StdEncoding.EncodeToString(response.Bytes())), goja.FLAG_FALSE, goja.FLAG_FALSE, goja.FLAG_TRUE)
 		_ = object.Set("getHeader", func(name string) string { return response.Header.Get(name) })
 		jsContext := vm.NewObject()
 		_ = jsContext.Set("response", object)
@@ -182,4 +202,12 @@ func (p *Program) AfterResponse(response attacker.Response, variables flow.Varia
 		commitVariables(variables, staged)
 		return nil
 	})
+}
+
+func decodeBytes(encoded string) ([]byte, error) {
+	data, err := base64.StdEncoding.Strict().DecodeString(encoded)
+	if err != nil {
+		return nil, fmt.Errorf("invalid base64 bytes")
+	}
+	return data, nil
 }

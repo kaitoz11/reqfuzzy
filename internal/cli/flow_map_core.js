@@ -85,6 +85,8 @@ var FlowMapCore = (function () {
     if (project.campaign) {
       var campaign = project.campaign, target = campaign.target || {}, main = phaseSteps.get("flow") || new Set();
       if (!main.has(target.step)) error("", "Campaign target step " + target.step + " must remain in the journey");
+      var targetNode=nodes.find(function(node){return node.phase==="flow"&&node.step.id===target.step;});
+      list(campaign.payload_variables).forEach(function(name){var source=sources.get(name);if(!source||!targetNode||source.phase!=="flow"||source.index>=targetNode.index)error("","Payload variable "+name+" needs a source before the target");});
       list(campaign.checks).forEach(function (check) {
         var phase = check.phase || "flow", ids = phaseSteps.get(phase) || new Set();
         if (!ids.has(check.step)) error("", "Campaign check " + check.id + " refers to missing " + phase + " step " + check.step);

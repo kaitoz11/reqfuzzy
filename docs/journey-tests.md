@@ -38,6 +38,9 @@ A version-1 `tests.yaml` file belongs inside the project. `target` names an exis
 | `set` | Set/add a scalar. JSON preserves number digits and can change types, including null. |
 | `remove` | Remove an existing field; no value is allowed. Missing fields are a mutation error. |
 | `append` / `prepend` | Combine a string payload with an existing unique string. JSON numbers and repeated headers/query keys are rejected. |
+| `add` / `multiply` | Apply an exact numeric operand to the current JSON number without float64 conversion. |
+
+Use ordered `payloads` sources to generate cases from typed lists, files, ranges, or shared definitions. `render` can use the current bound value and earlier flow variables; `encode` applies a deterministic string pipeline before final hooks. All source files are fingerprinted for reconstruction. See [payload sets and templates](payloads.md).
 
 Ambiguous duplicate-key JSON is rejected for structural mutations. Explicit raw Go hooks remain available for deliberate parameter-pollution experiments.
 

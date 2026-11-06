@@ -18,9 +18,11 @@ const reference = path.join(root, 'examples/stateful-tests');
 const referenceMap = path.join(artifacts, 'reference.html');
 const juiceMap = path.join(artifacts, 'juice-shop.html');
 const recoveryMap = path.join(artifacts, 'recovery.html');
+const payloadMap = path.join(artifacts, 'payloads.html');
 cli('flow', 'map', '--project', reference, '--test', 'tests.yaml', '--out', referenceMap);
 cli('flow', 'map', '--project', path.join(root, 'examples/juice-shop'), '--test', 'tests.yaml', '--out', juiceMap);
 cli('flow', 'map', '--project', path.join(root, 'examples/session-recovery'), '--test', 'tests.yaml', '--out', recoveryMap);
+cli('flow', 'map', '--project', path.join(root, 'examples/session-recovery'), '--test', 'text-payload-tests.yaml', '--out', payloadMap);
 
 const browser = await chromium.launch({ headless: true, executablePath: process.env.REQFUZZY_BROWSER || undefined });
 try {
@@ -151,6 +153,15 @@ try {
   await page.locator('#undo').click();assert.equal(await isExportable(),true);
   await node('Journey','transfer').click();
   await page.screenshot({path:path.join(artifacts,'recovery-desktop.png'),fullPage:true});
+
+  await page.goto(pathToFileURL(payloadMap).href);await page.waitForSelector('g.node');
+  assert.ok((await page.locator('#campaign').innerText()).includes('2 mutation cases'));
+  await node('Journey','transfer').click();
+  await page.locator('.entry').filter({has:field('flow:2-bind-2-path')}).getByRole('button',{name:'Remove',exact:true}).click();
+  assert.equal(await isExportable(),true);
+  await node('Journey','nonce').click();await field('flow:1-extract-0-name').fill('renamed_nonce');
+  assert.equal(await isExportable(),false,'payload-only variable dependency must remain valid');
+  await page.locator('#undo').click();assert.equal(await isExportable(),true);
 
   const payload = JSON.parse((await fs.readFile(referenceMap, 'utf8')).match(/<script id="project-data" type="application\/json">([\s\S]*?)<\/script>/)[1]);
   const hostileProject = path.join(artifacts, 'hostile-project');

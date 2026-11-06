@@ -10,6 +10,8 @@ import (
 func TestMorphingActionsChangeRealRequestBytes(t *testing.T) {
 	cases := []struct{ name, action, location, path, value, raw, wantBody, wantURL string }{
 		{"JSON null", "set", "json", "id", "null", "POST / HTTP/1.1\r\nContent-Type: application/json\r\n\r\n{\"id\":1}", `{"id":null}`, "/"},
+		{"exact decimal add", "add", "json", "id", "0.2", "POST / HTTP/1.1\r\nContent-Type: application/json\r\n\r\n{\"id\":0.1}", `{"id":0.3}`, "/"},
+		{"exact big integer multiply", "multiply", "json", "id", "-1", "POST / HTTP/1.1\r\nContent-Type: application/json\r\n\r\n{\"id\":9007199254740993}", `{"id":-9007199254740993}`, "/"},
 		{"JSON remove", "remove", "json", "id", "", "POST / HTTP/1.1\r\nContent-Type: application/json\r\n\r\n{\"id\":1,\"keep\":2}", `{"keep":2}`, "/"},
 		{"array remove first", "remove", "json", "items.0", "", "POST / HTTP/1.1\r\nContent-Type: application/json\r\n\r\n{\"items\":[10,20]}", `{"items":[20]}`, "/"},
 		{"root array remove first", "remove", "json", "0", "", "POST / HTTP/1.1\r\nContent-Type: application/json\r\n\r\n[10,20]", `[20]`, "/"},

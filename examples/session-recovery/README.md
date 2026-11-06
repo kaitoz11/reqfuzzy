@@ -31,3 +31,5 @@ The bound is 7 requests per trial: session 1 + nonce 2 + transfer 2 + refresh 1 
 For persistent expiry, restart with `--refresh-once --expire-at-transfer`. Recovery cannot finish; the baseline reaches its limit, exits 2, and sends no mutation cases. A visit cap bounds work rather than turning an unfinished recovery into success.
 
 The editor supports allowed routes, default next, visit limits, accepted status sets, optional extraction, and extraction status gates. It sends no requests. See [flow-control semantics](../../docs/flow-control.md).
+
+For generated cases, run `flow plan --project examples/session-recovery --test payload-tests.yaml`. Its shared `payloads/finance.yaml` library reads exact numeric multipliers from JSONL. Pass `--test payload-tests.yaml` to `flow test` for the same signed recovery loop. `text-payload-tests.yaml` uses literal text plus the current nonce and base64 encoding; each replayed target visit receives a freshly rendered header. See [payload semantics](../../docs/payloads.md).

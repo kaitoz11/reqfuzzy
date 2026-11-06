@@ -20,14 +20,16 @@ Named cookies extend binding and all four mutation actions to a sixth location, 
 
 Script-controlled flow, integrated in PR #18 at `262f566`, adds declared default/allowed routes, bounded visits, accepted status sets, optional/status-gated extraction, and per-visit output freshness. Campaigns assess the last target status, prove every mutated attempt, support last/numbered/all checks, and plan all visits with checked arithmetic. Summaries/evidence retain decisions and ordinals; the editor preserves control settings and draws loops/backward routes. [Recovery acceptance](acceptance/session-recovery.md) proves rotated token/key signing, new nonces, secure rejection, vulnerable balance increase, replay, and hard exhaustion without a false pass. Go 1.24/stable CI, including browser authoring, passed.
 
+Reusable payloads extend campaigns with typed lists, literal/JSONL files, exact integer ranges, shared libraries, stable source/index IDs, fresh bound-value/variable templates, ordered encoders, and exact JSON add/multiply. `flow plan` inspects generated cases and budgets offline. Source fingerprints protect reconstruction; lazy per-visit compilation and aggregate limits bound expansion. The signed recovery integration exercises generated arithmetic cases, changed-wordlist refusal, and nonce templates that change across attempts. Map validation also protects payload-only dependencies.
+
 Integration agreement: the user authorized merging these and future reviewed changes with passing CI into `feat/req-fuzzer`. Continue under that standing approval rather than asking for each subsequent integration.
 
 The complete goal remains unproven. These gaps still matter:
 
 - Third-party acceptance now exists for Juice Shop's checkout API; broader application compatibility remains unproven.
-- Mutation coverage needs additional PayInt-style payload/template operations and multipart dependencies/mutations. Path, form, and named cookie capabilities are implemented.
-- Payload/template breadth remains to be proved against realistic journeys. Controlled recovery and polling are implemented, and the visual authoring loop covers both the reference and Juice Shop projects. Complete PayInt corpus parity and distributed execution are not prerequisites for the first useful tool.
+- Multipart dependencies/mutations remain outside current coverage. Path, form, named cookie, and reusable payload/template capabilities are implemented.
+- Controlled recovery, generated payloads, and polling are implemented, and the visual authoring loop covers both the reference and Juice Shop projects. Complete PayInt corpus parity and distributed execution are not prerequisites for the first useful tool.
 
 No completion claim should rely on CI alone. It must demonstrate the operator workflow on an independent reference API with changing tokens/nonces, signing, rejected and accepted mutations, and downstream invariant checks; then validate it on an operator-provided capture when one is available.
 
-Next delivery priority is payload/template breadth. Prefer core capability over more acceptance variants for the already demonstrated journeys.
+Next delivery priority is multipart binding/inference/mutation. Prefer core capability over more acceptance variants for the already demonstrated journeys.

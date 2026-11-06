@@ -1,0 +1,5 @@
+version: 1
+action: multiply
+file: operators.jsonl
+format: jsonl
+unique: true

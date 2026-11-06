@@ -49,4 +49,6 @@ Human output lists step statuses and response SHA-256 hashes. `--json` emits exa
 
 `flow map --project DIR --out FILE [--test tests.yaml]` creates a new private offline visual editor. It maps variable dependencies, supports step/binding/extraction edits, and exports the active flow. With a campaign it includes verification and validates cross-phase references. It does not execute hooks or send requests. See [visual mapping and authoring](flow-map.md).
 
+`flow plan --project DIR [--test tests.yaml] [--hooks DIR] [--max-requests N]` expands and statically checks the campaign offline, reporting case IDs/actions/origins and request bounds without values or hook execution. Oversized plans remain inspectable; execution enforces the budget. See [reusable payloads](payloads.md).
+
 See [script hooks](script-hooks.md) for dynamic request transformations and response logic, and the runnable project in `examples/scripted-flow`.

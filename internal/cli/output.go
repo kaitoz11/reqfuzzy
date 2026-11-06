@@ -93,6 +93,15 @@ func emit(stdout, stderr io.Writer, jsonMode bool, command string, result any, c
 		fmt.Fprintln(stderr)
 	}
 	switch value := result.(type) {
+	case payloadPlanSummary:
+		fmt.Fprintf(stdout, "%s: %d cases, request upper bound %d (within budget: %t)\n", value.Name, len(value.Cases), value.RequestUpperBound, value.WithinBudget)
+		for _, candidate := range value.Cases {
+			fmt.Fprintf(stdout, "  %s  %s", candidate.ID, candidate.Action)
+			if candidate.Source != "" {
+				fmt.Fprintf(stdout, "  %s[%d]", candidate.Source, candidate.SourceIndex)
+			}
+			fmt.Fprintln(stdout)
+		}
 	case mapSummary:
 		fmt.Fprintf(stdout, "Wrote flow map %s (%d steps, %d dependencies)\n", value.File, value.Steps, value.Dependencies)
 	case testSummary:

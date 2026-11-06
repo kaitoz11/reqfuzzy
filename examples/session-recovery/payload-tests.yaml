@@ -1,0 +1,10 @@
+version: 1
+name: generated-finance-cases
+target: {step: transfer, location: json, path: amount}
+observe_statuses: [201, 422]
+verify: verify.yaml
+payloads:
+  - {id: finance, use: payloads/finance.yaml}
+checks:
+  - {id: no-balance-increase, phase: verify, step: balance, select: json, path: balance, op: lte, variable: initial_balance}
+  - {id: no-server-error, step: transfer, select: status, op: lt, value: 500, visit: all}

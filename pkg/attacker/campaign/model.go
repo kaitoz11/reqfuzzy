@@ -67,15 +67,22 @@ type Target struct {
 	AllowTransform bool   `yaml:"allow_transform,omitempty" json:"allow_transform,omitempty"`
 }
 type Case struct {
-	ID     string `yaml:"id" json:"id"`
-	Action string `yaml:"action" json:"action"`
-	Value  Scalar `yaml:"value,omitempty" json:"value,omitempty"`
+	ID          string   `yaml:"id" json:"id"`
+	Action      string   `yaml:"action" json:"action"`
+	Value       Scalar   `yaml:"value,omitempty" json:"value,omitempty"`
+	Render      string   `yaml:"render,omitempty" json:"-"`
+	Encode      []string `yaml:"encode,omitempty" json:"-"`
+	Source      string   `yaml:"-" json:"-"`
+	SourceIndex int      `yaml:"-" json:"-"`
 }
 
 func (c *Case) UnmarshalYAML(node *yaml.Node) error {
 	type plain Case
 	var decoded plain
-	if err := recordFields(node, "id", "action", "value"); err != nil {
+	if err := recordFields(node, "id", "action", "value", "render", "encode"); err != nil {
+		return err
+	}
+	if err := validateEncodeSyntax(node); err != nil {
 		return err
 	}
 	if err := node.Decode(&decoded); err != nil {
@@ -84,6 +91,31 @@ func (c *Case) UnmarshalYAML(node *yaml.Node) error {
 	*c = Case(decoded)
 	if hasNullValue(node) {
 		c.Value = Scalar("null")
+	}
+	return nil
+}
+
+func payloadNode(node *yaml.Node) *yaml.Node {
+	for i := 0; i < 32 && node.Kind == yaml.AliasNode && node.Alias != nil; i++ {
+		node = node.Alias
+	}
+	return node
+}
+func validateEncodeSyntax(node *yaml.Node) error {
+	for i := 0; i+1 < len(node.Content); i += 2 {
+		if node.Content[i].Value != "encode" {
+			continue
+		}
+		value := payloadNode(node.Content[i+1])
+		if value.Kind != yaml.SequenceNode {
+			return fmt.Errorf("encode must be a list of encoder names")
+		}
+		for _, item := range value.Content {
+			entry := payloadNode(item)
+			if entry.Kind != yaml.ScalarNode || entry.Tag != "!!str" {
+				return fmt.Errorf("encoder names must be strings")
+			}
+		}
 	}
 	return nil
 }
@@ -147,14 +179,15 @@ type Redaction struct {
 	JSONPaths []string `yaml:"json_paths,omitempty" json:"json_paths,omitempty"`
 }
 type Spec struct {
-	Version         int       `yaml:"version" json:"version"`
-	Name            string    `yaml:"name" json:"name"`
-	Target          Target    `yaml:"target" json:"target"`
-	ObserveStatuses []int     `yaml:"observe_statuses" json:"observe_statuses"`
-	Verify          string    `yaml:"verify,omitempty" json:"verify,omitempty"`
-	Cases           []Case    `yaml:"cases" json:"cases"`
-	Checks          []Check   `yaml:"checks" json:"checks"`
-	Redact          Redaction `yaml:"redact,omitempty" json:"redact,omitempty"`
+	Version         int             `yaml:"version" json:"version"`
+	Name            string          `yaml:"name" json:"name"`
+	Target          Target          `yaml:"target" json:"target"`
+	ObserveStatuses []int           `yaml:"observe_statuses" json:"observe_statuses"`
+	Verify          string          `yaml:"verify,omitempty" json:"verify,omitempty"`
+	Cases           []Case          `yaml:"cases" json:"cases"`
+	Payloads        []PayloadSource `yaml:"payloads,omitempty" json:"-"`
+	Checks          []Check         `yaml:"checks" json:"checks"`
+	Redact          Redaction       `yaml:"redact,omitempty" json:"redact,omitempty"`
 }
 
 type Outcome string
@@ -176,6 +209,8 @@ type CheckResult struct {
 }
 type Trial struct {
 	ID            string         `json:"id"`
+	Source        string         `json:"source,omitempty"`
+	SourceIndex   int            `json:"source_index,omitempty"`
 	Outcome       Outcome        `json:"outcome"`
 	Reason        string         `json:"reason,omitempty"`
 	TargetStatus  int            `json:"target_status,omitempty"`

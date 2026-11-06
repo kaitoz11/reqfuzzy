@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -36,11 +37,28 @@ func loadJourneyProject(directory, testFile, hooks string) (journeyProject, erro
 	if err != nil {
 		return journeyProject{}, err
 	}
-	spec, err := campaign.LoadYAML(data)
+	files := map[string]string{"test": testPath}
+	spec, err := campaign.LoadYAMLWithResolver(data, func(relative string) ([]byte, error) {
+		path, err := inside(p.Root, relative)
+		if err != nil {
+			return nil, fmt.Errorf("payload file: %w", err)
+		}
+		file, err := os.Open(path)
+		if err != nil {
+			return nil, err
+		}
+		defer file.Close()
+		content, err := io.ReadAll(io.LimitReader(file, campaign.MaxPayloadBytes+1))
+		if err != nil {
+			return nil, err
+		}
+		files["payload:"+filepath.ToSlash(filepath.Clean(relative))] = path
+		return content, nil
+	})
 	if err != nil {
 		return journeyProject{}, err
 	}
-	loaded := journeyProject{project: p, spec: spec, files: map[string]string{"test": testPath}}
+	loaded := journeyProject{project: p, spec: spec, files: files}
 	if spec.Verify != "" {
 		path, err := inside(p.Root, spec.Verify)
 		if err != nil {

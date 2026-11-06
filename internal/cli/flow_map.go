@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"sort"
 
+	"github.com/kaitoz11/reqfuzzy/pkg/attacker/campaign"
 	"github.com/kaitoz11/reqfuzzy/pkg/attacker/flow"
 	"gopkg.in/yaml.v3"
 )
@@ -42,9 +43,11 @@ type mapCheck struct {
 	Variable string `json:"variable,omitempty"`
 }
 type mapCampaign struct {
-	Name   string     `json:"name"`
-	Target mapTarget  `json:"target"`
-	Checks []mapCheck `json:"checks"`
+	Name             string     `json:"name"`
+	Target           mapTarget  `json:"target"`
+	Checks           []mapCheck `json:"checks"`
+	CaseCount        int        `json:"case_count"`
+	PayloadVariables []string   `json:"payload_variables,omitempty"`
 }
 type mapProject struct {
 	FormatVersion int          `json:"format_version"`
@@ -89,7 +92,7 @@ func runFlowMap(args []string, stdout, stderr io.Writer, jsonMode bool) int {
 		p = journey.project
 		definitions[0] = p.Flow
 		spec := journey.spec
-		document.Campaign = &mapCampaign{Name: spec.Name, Target: mapTarget{spec.Target.Step, spec.Target.Location, spec.Target.Path}, Checks: []mapCheck{}}
+		document.Campaign = &mapCampaign{Name: spec.Name, Target: mapTarget{spec.Target.Step, spec.Target.Location, spec.Target.Path}, Checks: []mapCheck{}, CaseCount: len(spec.Cases), PayloadVariables: campaign.PayloadVariables(spec)}
 		for _, check := range spec.Checks {
 			document.Campaign.Checks = append(document.Campaign.Checks, mapCheck{check.ID, check.Phase, check.Step, check.Variable})
 		}

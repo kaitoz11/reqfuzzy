@@ -13,6 +13,8 @@ Use the same location names in step `bind` entries, `flow compare --location`, a
 
 Remove requires an existing target and takes no value. Append/prepend take string payloads. Null is a JSON-only value. Transport-managed framing headers and Host removal remain unsupported. Existing captured Cookie headers are still removed; current request bindings, client defaults, and the actor's live jar provide cookies.
 
+JSON numbers additionally support `add` and `multiply` with exact numeric operands. These arithmetic actions use the current bound number and do not coerce strings or apply to other locations. [Payload sets and templates](payloads.md) describe reusable sources and string transformations.
+
 ## Named cookies
 
 Extract a single response `Set-Cookie` value and bind it into a later request:

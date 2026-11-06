@@ -44,6 +44,18 @@ func Preflight(runner flow.Runner, main flow.Flow, verification *flow.Flow, spec
 	if err := runner.PreflightTarget(main, spec.Target.Step, spec.Target.Location, spec.Target.Path); err != nil {
 		return err
 	}
+	beforeTarget := flow.CloneVariables(runner.InitialVariables)
+	for _, step := range main.Steps {
+		if step.ID == spec.Target.Step {
+			break
+		}
+		beforeTarget = DeclaredVariables(flow.Flow{Steps: []flow.Step{step}}, beforeTarget)
+	}
+	for _, name := range PayloadVariables(spec) {
+		if _, ok := beforeTarget[name]; !ok {
+			return fmt.Errorf("payload variable %q must be declared before the target", name)
+		}
+	}
 	declared := DeclaredVariables(main, runner.InitialVariables)
 	verifySteps := map[string]bool{}
 	if spec.Verify != "" && verification == nil {
@@ -84,7 +96,7 @@ func Run(ctx context.Context, runner flow.Runner, main flow.Flow, verification *
 	}
 	mutations := make([]flow.Mutation, len(spec.Cases))
 	for index, candidate := range spec.Cases {
-		mutations[index], _ = flow.BuildMutation(flow.MutationSpec{Action: candidate.Action, Location: spec.Target.Location, Path: spec.Target.Path, Value: candidate.Value})
+		mutations[index], _ = BuildCaseMutation(spec.Target, candidate)
 	}
 	baseline := executeTrial(ctx, runner, main, verification, spec, "baseline", nil, true, "")
 	if baseline.Outcome == Pass {
@@ -115,6 +127,7 @@ func Run(ctx context.Context, runner flow.Runner, main flow.Flow, verification *
 			return result, err
 		}
 		trial := executeTrial(ctx, runner, main, verification, spec, candidate.ID, &flow.StepMutation{StepID: spec.Target.Step, Apply: mutations[index]}, false, candidate.Action)
+		trial.Source, trial.SourceIndex = candidate.Source, candidate.SourceIndex
 		if trial.Outcome == Pass {
 			trial.Checks = evaluate(spec.Checks, trial, baseline)
 			trial.Outcome = checksOutcome(trial.Checks)

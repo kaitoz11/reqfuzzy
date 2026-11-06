@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/kaitoz11/reqfuzzy/pkg/attacker/flow"
 	"github.com/tidwall/gjson"
@@ -15,6 +16,13 @@ import (
 )
 
 func LoadYAML(data []byte) (Spec, error) {
+	return LoadYAMLWithResolver(data, nil)
+}
+
+func LoadYAMLWithResolver(data []byte, resolve PayloadResolver) (Spec, error) {
+	if len(data) > MaxPayloadBytes || !utf8.Valid(data) {
+		return Spec{}, fmt.Errorf("campaign definition exceeds size limit or is not UTF-8")
+	}
 	decoder := yaml.NewDecoder(bytes.NewReader(data))
 	decoder.KnownFields(true)
 	var spec Spec
@@ -24,6 +32,10 @@ func LoadYAML(data []byte) (Spec, error) {
 	var extra any
 	if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {
 		return Spec{}, fmt.Errorf("journey test needs one YAML document")
+	}
+	spec, err := ResolvePayloads(spec, resolve)
+	if err != nil {
+		return Spec{}, err
 	}
 	if err := Validate(spec); err != nil {
 		return Spec{}, err
@@ -45,6 +57,20 @@ func SafeID(id string) bool {
 }
 
 func Validate(spec Spec) error {
+	totalBytes := 0
+	for _, candidate := range spec.Cases {
+		size := len(candidate.Value) + len(candidate.Render)
+		if size > MaxExpandedBytes-totalBytes {
+			return fmt.Errorf("expanded payload definitions exceed size limit")
+		}
+		totalBytes += size
+	}
+	if len(spec.Payloads) > 0 {
+		return fmt.Errorf("resolve payload definitions before validation")
+	}
+	if len(spec.Cases) > MaxExpandedCases {
+		return fmt.Errorf("campaign exceeds maximum case count")
+	}
 	if spec.Version != 1 || strings.TrimSpace(spec.Name) == "" {
 		return fmt.Errorf("journey test requires version 1 and name")
 	}
@@ -70,7 +96,7 @@ func Validate(spec Spec) error {
 			return fmt.Errorf("case IDs must be unique safe names and cannot be baseline")
 		}
 		ids[candidate.ID] = true
-		if _, err := flow.BuildMutation(flow.MutationSpec{Action: candidate.Action, Location: spec.Target.Location, Path: spec.Target.Path, Value: candidate.Value}); err != nil {
+		if _, err := BuildCaseMutation(spec.Target, candidate); err != nil {
 			return fmt.Errorf("case %q: %w", candidate.ID, err)
 		}
 	}

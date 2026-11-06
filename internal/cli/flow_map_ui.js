@@ -89,7 +89,7 @@
     var campaign = $("campaign"); campaign.replaceChildren(); campaign.hidden = !state.project.campaign;
     if (state.project.campaign) {
       var meta = state.project.campaign, content = element("div");
-      content.append(element("strong", meta.name), element("p", meta.checks.length + " checks · Campaign references stay fixed in this map", "status"));
+      content.append(element("strong", meta.name), element("p", meta.checks.length + " checks" + (meta.case_count===undefined ? "" : " · "+meta.case_count+" mutation cases") + " · Campaign references stay fixed in this map", "status"));
       campaign.append(content, element("span", "Target " + meta.target.step + " · " + meta.target.location + ":" + meta.target.path, "badge"));
     }
     $("map-caption").textContent = "Request order by actor · Select a step or dependency to edit";

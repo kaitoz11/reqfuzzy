@@ -115,3 +115,14 @@ func TestFlowMapControlsPreserveBranchesLimitsAndExtractionGates(t *testing.T) {
 		}
 	}
 }
+
+func TestFlowMapProtectsRuntimePayloadVariables(t *testing.T) {
+	vm := mapVM(t)
+	mapEval(t, vm, `project.flows[0].definition.steps[0].extract.push({name:"payload_only",json:"marker"});project.campaign.payload_variables=["payload_only"];`)
+	if mapEval(t, vm, `String(FlowMapCore.analyze(project).valid);`) != "true" {
+		t.Fatal("valid payload reference rejected")
+	}
+	if mapEval(t, vm, `project.flows[0].definition.steps[0].extract.pop();String(FlowMapCore.analyze(project).valid);`) != "false" {
+		t.Fatal("editor allowed deletion of a payload-only variable source")
+	}
+}

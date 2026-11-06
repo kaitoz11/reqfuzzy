@@ -1,0 +1,12 @@
+version: 1
+name: stateful-encoded-probes
+target: {step: transfer, location: header, path: X-Payload}
+observe_statuses: [201]
+payloads:
+  - id: probes
+    action: set
+    file: payloads/probes.txt
+    render: "{{value}}:{{var:nonce}}"
+    encode: [base64]
+checks:
+  - {id: no-server-error, step: transfer, select: status, op: lt, value: 500, visit: all}

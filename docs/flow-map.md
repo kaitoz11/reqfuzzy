@@ -30,6 +30,8 @@ Changes update the graph immediately. Undo/redo and Reset operate in memory. Emp
 
 With `--test`, Journey and Verification select which definition to edit/export while the graph shows both. Cross-phase edges point to their real source, even when phases use equal step IDs. The campaign target is highlighted. Campaign definitions are read-only in this editor; target/check step names and referenced variables must remain valid. Edit the campaign file separately to change its assertions or mutation cases.
 
+Resolved payload case counts are displayed without operands. Variables used only by payload templates also remain protected: their sources must exist before the target. Payload definitions themselves stay in their campaign/library files.
+
 ## Save the edited definitions
 
 Export downloads the active flow as `flow.yaml` or the verification filename. Apply each downloaded file to the corresponding project file before running. The browser cannot write project files or execute requests.

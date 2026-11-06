@@ -54,7 +54,7 @@ func BuildMutation(spec MutationSpec) (Mutation, error) {
 	default:
 		return nil, fmt.Errorf("unsupported mutation location %q", spec.Location)
 	}
-	if spec.Action != "set" && spec.Action != "remove" && spec.Action != "append" && spec.Action != "prepend" {
+	if spec.Action != "set" && spec.Action != "remove" && spec.Action != "append" && spec.Action != "prepend" && spec.Action != "add" && spec.Action != "multiply" {
 		return nil, fmt.Errorf("unsupported mutation action %q", spec.Action)
 	}
 	var payload Value
@@ -82,8 +82,34 @@ func BuildMutation(spec MutationSpec) (Mutation, error) {
 				return nil, err
 			}
 		}
+		if spec.Action == "add" || spec.Action == "multiply" {
+			if spec.Location != "json" {
+				return nil, fmt.Errorf("arithmetic mutations require JSON location")
+			}
+			if _, err := jsonutil.Arithmetic([]byte("0"), payload.RawJSON, "add"); err != nil {
+				return nil, err
+			}
+		}
 	}
 	return func(request attacker.Request, _ Variables) error {
+		if spec.Action == "add" || spec.Action == "multiply" {
+			current, err := CurrentMutationValue(request, spec.Location, spec.Path)
+			if err != nil {
+				return err
+			}
+			raw, err := jsonutil.Arithmetic(current.RawJSON, payload.RawJSON, spec.Action)
+			if err != nil {
+				return err
+			}
+			value, err := ParseValue(raw)
+			if err != nil {
+				return err
+			}
+			if err := bindValue(request, Binding{Location: spec.Location, Path: spec.Path}, value); err != nil {
+				return err
+			}
+			return jsonMutationApplied(request, lookup, raw, false)
+		}
 		if spec.Location == "json" {
 			if err := jsonutil.ValidateUnique(request.Body); err != nil {
 				return err

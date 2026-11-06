@@ -31,14 +31,15 @@ The example obtains a fresh token, signs the final request body, and reads back 
 - [Conditional journeys and bounded repetition](docs/flow-control.md)
 - [JavaScript request and response hooks](docs/script-hooks.md)
 - [Stateful mutation tests and reproducible evidence](docs/journey-tests.md)
+- [Reusable payload sets and runtime templates](docs/payloads.md)
 - [HAR import and flow inference](docs/har-flow-inference.md)
 - [Flow model and Go API](docs/flow-mutation.md)
 - [Binding and mutation locations](docs/request-locations.md)
 
-Reusable test cases can set, remove, append, and prepend values, run downstream verification, evaluate explicit invariants, and record protected evidence for reconstruction. Start with the [stateful reference example](docs/journey-tests.md) to see secure rejection, an intentional balance bug, and invalid-session handling.
+Reusable test cases can set, remove, append, and prepend values, run downstream verification, evaluate explicit invariants, and record protected evidence for reconstruction. Payload sources add typed lists, wordlists, JSONL, exact ranges, shared libraries, fresh-state templates, encoders, and exact JSON add/multiply operations. Inspect generated IDs and budgets offline with `flow plan`. Start with the [stateful reference example](docs/journey-tests.md) to see secure rejection, an intentional balance bug, and invalid-session handling.
 
 Current inference covers JSON response scalars and named `Set-Cookie` values passed into path segments, headers, query values, JSON bodies, URL-encoded form fields, and request cookies. Short or ambiguous values can be bound explicitly. All six locations support set/remove/append/prepend mutations. The [Juice Shop checkout example](examples/juice-shop/README.md) demonstrates fresh accounts, dynamic path IDs, quantity mutation, persisted-order checks, and reconstruction against a pinned local application.
 
 Create an offline visual editor with `bin/reqfuzzy flow map --project examples/juice-shop --test tests.yaml --out .reqfuzzy/checkout-map.html`. Inspect inferred/authored dependencies, edit the journey and verification flows, and export definitions without sending requests.
 
-Response scripts can now choose declared next steps for session recovery or polling, bounded by per-step visit limits and request budgets. The [recovery example](examples/session-recovery/README.md) refreshes token/key state and re-signs each mutated attempt. Multipart inference and broader payload/template support remain separate increments.
+Response scripts can choose declared next steps for session recovery or polling, bounded by per-step visit limits and request budgets. The [recovery example](examples/session-recovery/README.md) refreshes token/key state and re-signs each mutated attempt, including generated financial and encoded text payloads. Multipart inference/binding/mutation remains a separate increment.

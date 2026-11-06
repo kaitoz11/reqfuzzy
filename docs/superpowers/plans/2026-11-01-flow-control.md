@@ -19,4 +19,6 @@ Go 1.24; legacy one-visit behavior; explicit routes and limits; no hidden target
 - [x] Add failing campaign tests for repeated targets and `visit: last|N|all`. Select the last target status, prove every mutated occurrence, retain intermediate evidence, and update CLI request planning with checked arithmetic.
 - [x] Extend visual core/editor for route validation/edges, accepted status sets, visit limits, and optional extraction; round-trip through Go and exercise actual browser editing.
 - [x] Extend the reference API and runnable recovery example, connect actual CLI test/replay acceptance, and document operator behavior.
-- [ ] Run appropriate race/vet/floor/build/browser checks, fix substantive review findings, publish, wait on the specific CI run, and merge after passing checks. Update status and keep the broader goal active while payload/template coverage remains.
+- [x] Run appropriate race/vet/floor/build/browser checks, fix substantive review findings, publish, wait on the specific CI run, and merge after passing checks. Update status and keep the broader goal active while payload/template coverage remains.
+
+Delivered in PR #18, merged at `262f566`. CI run `41322587579` passed both Go jobs and actual browser checks. Native recovered test/replay evidence is in `.reqfuzzy/recovery-delivery-20261101/` and `.reqfuzzy/recovery-delivery-replay-20261101/`. The integrated editor preview is `.reqfuzzy/recovery-flow-preview.html`.

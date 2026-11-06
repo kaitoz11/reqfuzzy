@@ -1,34 +1,39 @@
 # Current delivery status — 2026-11-06
 
-The PayInt rework is implemented in **reqfuzzy**, using its existing Go runtime. This repository holds historical requirements and the delivery pointer; no separate Python kvar runtime is being built here.
+The initial scriptable API-testing tooling is delivered in **reqfuzzy**, using its existing Go runtime. This repository remains the historical requirements/delivery pointer. The current development revision is `70715c16d8f356972c086c058cb7a5312f48875d` on `feat/req-fuzzer` after [PR #20](https://github.com/kaitoz11/reqfuzzy/pull/20).
 
-## Integrated into reqfuzzy development
+## Delivered operator workflow
 
-- HAR import and conservative response-to-request dependency inference for path segments, headers, query values, JSON scalars, URL-encoded form fields, and named cookies. Sources include scalar JSON values and named response `Set-Cookie` values.
-- Authored sequential flows with extracted variables, actor sessions, and before/after JavaScript hooks for dynamic request preparation.
-- CLI flow execution and set/remove/append/prepend mutations of path segments, headers, query values, JSON bodies, UTF-8 URL-encoded form fields, and named cookies. Cookie overlays preserve stored sessions and server rotation.
-- Reusable mutation cases, downstream invariant checks, redacted evidence, and reconstruction of a selected case with fresh state.
-- Offline visual mapping and authoring: actor lanes, dependencies across journey/verification, step and binding/extraction editors, validated exports, and campaign-reference protection. The browser sends no requests.
-- Script-controlled branching and bounded repetition, recovery/polling, status-gated/optional extraction, all-attempt mutation proof, occurrence-aware checks, and planned repeated-request budgets. The editor displays and edits control routes and limits.
-- Reusable typed payload sets, wordlists/JSONL, exact ranges, shared libraries, fresh-state rendering/encoding, exact JSON arithmetic, source fingerprints, and offline `flow plan`. Generated cases retain stable source/index IDs and mutation proof.
+Capture/import → infer or visually author dependencies → script preparation/authentication/signing → run with fresh state → morph a selected request → check downstream effects → retain evidence and reconstruct a case.
 
-The CLI ([PR #12](https://github.com/kaitoz11/reqfuzzy/pull/12)), journey campaigns/evidence ([PR #13](https://github.com/kaitoz11/reqfuzzy/pull/13)), path dependencies ([PR #14](https://github.com/kaitoz11/reqfuzzy/pull/14)), path/form morphing ([PR #15](https://github.com/kaitoz11/reqfuzzy/pull/15)), named cookies ([PR #16](https://github.com/kaitoz11/reqfuzzy/pull/16)), visual authoring ([PR #17](https://github.com/kaitoz11/reqfuzzy/pull/17)), flow control ([PR #18](https://github.com/kaitoz11/reqfuzzy/pull/18)), and payload/templates ([PR #19](https://github.com/kaitoz11/reqfuzzy/pull/19)) are merged into `feat/req-fuzzer` after review and passing Go 1.24/stable CI. Stable CI includes actual browser checks. The latest merge is `d96b0f7`.
+- Offline HAR import and conservative response-scalar/Set-Cookie inference, with explicit authoring for short/ambiguous values.
+- Ten binding/mutation locations: JSON, header, query, path, URL-encoded form, named cookie, multipart text, file bytes, full filename, and part media type. Set/remove/append/prepend are supported; JSON also supports exact add/multiply.
+- Fresh trial/actor sessions, changing nonce/token/key state, before/after JavaScript hooks, binary body representations, and byte SHA/HMAC signing.
+- Declared branching, bounded repetition/recovery/polling, optional/status-gated extraction, every-attempt mutation proof, occurrence-aware assertions, and checked request budgets.
+- Reusable typed/file/range payloads, shared libraries, fresh-state templates/encoders, stable generated IDs, and offline planning.
+- Offline visual mapping/authoring with actor lanes, data/control edges, journey/verification editors, validation and export. The browser sends no requests.
+- Same-session downstream checks, explicit pass/fail/inconclusive outcomes, protected/redacted evidence, source fingerprints, and fresh-state reconstruction.
 
-The user authorized these and future reviewed changes with passing CI to merge into `feat/req-fuzzer`. That approval persists; do not request it again for subsequent development integrations.
+The [operator-workflow audit](../reqfuzzy-juice-shop/docs/operator-workflow-audit.md) maps the requirements to implementation and executable evidence. The runtime and examples are in `../reqfuzzy-juice-shop`; its current checkout includes the merged development revision. Build from that repository with `go build -o .reqfuzzy/bin/reqfuzzy ./cmd/reqfuzzy`.
 
-## Acceptance reached
+## Review and integration
 
-The local reference API demonstrated cookie/token state, changing nonces, final-body signing, rejected mutations, and downstream balance checks. The recovery journey follows `401 → refresh → new nonce → re-sign → transfer`, verifies both mutated attempts, distinguishes secure rejection from balance 110 in vulnerable mode, and reconstructs the case. Generated financial cases reproduce the same violation, while nonce-based text templates change on every recovery visit; source drift refuses replay. Hard exhaustion sends no cases; a 20-request cap refuses the recovery plan's 21 requests before traffic. Independent acceptance uses pinned local OWASP Juice Shop v20.3.0: capture → import → fresh account/login → dynamic basket/item IDs → quantity mutation → checkout → persisted order check. Negative quantity produced total −19.90 and fresh-state reconstruction reproduced it. Browser authoring covers all three projects. The sibling worktree `../reqfuzzy-juice-shop` starts the next slice on `feat/multipart`.
+PRs [#12](https://github.com/kaitoz11/reqfuzzy/pull/12)–[#20](https://github.com/kaitoz11/reqfuzzy/pull/20) are integrated into `feat/req-fuzzer`. The final multipart/binary change passed independent code review and [Go 1.24/stable CI](https://github.com/kaitoz11/reqfuzzy/actions/runs/42180327626), including full race tests, vet, build, and actual browser checks. Review corrected a named-form-field proof bug: changing a part's disposition to attachment now makes the named mutation unassessable rather than verified.
 
-Open `../reqfuzzy-juice-shop/.reqfuzzy/flow-map-preview.html` for the integrated Juice Shop editor. Its source is generated by `flow map --project examples/juice-shop --test tests.yaml --out FILE` from the reqfuzzy repository root.
+The user authorized these and future reviewed changes with passing CI to merge into `feat/req-fuzzer`. That standing approval persists. Development integration does not authorize a release or merge into `main`.
 
-Open `../reqfuzzy-juice-shop/.reqfuzzy/recovery-flow-preview.html` for the integrated conditional/repeating recovery map.
+## Application evidence
 
-There is enough evidence for the current delivery slice. Additional acceptance variants are not the immediate priority.
+The signed reference API and recovery journey demonstrate fresh sessions/nonces, rotating token/key state, final-byte signing, rejected mutations, downstream balance checks, every-attempt proof, request exhaustion, generated payloads, and reconstruction.
 
-## Next product work, in order
+Independent acceptance uses pinned local OWASP Juice Shop v20.3.0: actual capture → import → fresh signup/login → dynamic basket/item IDs → quantity mutation → checkout → persisted order check. Negative quantity produced total −19.90 and fresh-state reconstruction reproduced it. The user delegated target selection; no operator-provided capture was available.
 
-1. Extend multipart binding/inference/mutation coverage, including file uploads.
-2. Audit the complete operator workflow against the original tooling requirements.
+The [multipart project](../reqfuzzy-juice-shop/examples/multipart/README.md) adds actual captured/imported uploads, binary file binding/signing, a binary response hook, generated filename mutations, and downstream checks. Secure mode rejects unsafe names; vulnerable mode accepts them and fails the invariant with verified proof. Native CLI campaign/replay artifacts are under `.reqfuzzy/upload-delivery-20261106/` and `.reqfuzzy/upload-replay-20261106/` in reqfuzzy, with bounds nine/six. The local fixture was stopped. Browser checks passed with zero network requests.
 
-The broader project goal remains active. Current runtime coverage does not yet provide full PayInt payload parity or multipart inference. Detailed implementation plans and capability evidence live in reqfuzzy's `docs/` directory.
+Open `../reqfuzzy-juice-shop/.reqfuzzy/upload-flow-preview.html` for the upload editor, `flow-map-preview.html` for Juice Shop, or `recovery-flow-preview.html` for conditional recovery. Generate an editor with `flow map --project examples/multipart --test tests.yaml --out FILE` from reqfuzzy.
+
+## Scope after delivery
+
+The initial goal—turn reqfuzzy into a scriptable tool for testing stateful API journeys—has implementation and application evidence for every audited requirement. There is no remaining required feature in that delivery plan.
+
+Broader application compatibility, full legacy PayInt corpus/DSL parity, live proxy capture, distributed/concurrent execution, and complete Postman API/collection compatibility remain future projects. This delivery provides the required scripting/flow workflow and operator-authored assertions; it does not claim universal vulnerability detection or production compatibility with every API. A release into `main` remains a separate decision.

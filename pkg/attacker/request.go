@@ -1,13 +1,11 @@
 package attacker
 
 import (
-	"bufio"
-	"errors"
 	"fmt"
-	"strings"
+	"log/slog"
 
 	"github.com/imroc/req/v3"
-	"github.com/tidwall/gjson"
+	"github.com/kaitoz11/reqfuzzy/pkg/attacker/rawreq"
 	"github.com/tidwall/sjson"
 )
 
@@ -16,116 +14,48 @@ type Request struct {
 }
 
 func (r *Request) UpdateJsonBody(key string, value any) (err error) {
-	if r.GetContextData(RequestBodyType).(BodyType) != Json {
+	if r.GetContextData(rawreq.RequestBodyType).(rawreq.BodyType) != rawreq.Json {
 		return fmt.Errorf("request body is not json")
 	}
 
-	updatedJsonBody, err := sjson.Set(string(r.Body), key, value)
+	updatedJsonBody, err := sjson.SetBytes(r.Body, key, value)
 	if err != nil {
 		return
 	}
 
-	r.SetBodyJsonString(updatedJsonBody)
+	r.SetBodyBytes(updatedJsonBody)
 	return
 }
 
 func (r *Request) DeleteJsonData(key string, value any) (err error) {
-	if r.GetContextData(RequestBodyType).(BodyType) != Json {
+	if r.GetContextData(rawreq.RequestBodyType).(rawreq.BodyType) != rawreq.Json {
 		return fmt.Errorf("request body is not json")
 	}
 
-	updatedJsonBody, err := sjson.Delete(string(r.Body), key)
+	updatedJsonBody, err := sjson.DeleteBytes(r.Body, key)
 	if err != nil {
 		return
 	}
 
-	r.SetBodyJsonString(updatedJsonBody)
+	r.SetBodyBytes(updatedJsonBody)
 	return
 }
 
-func ParseRawRequest(client *req.Client, rawRequest string) (*req.Request, error) {
+func FromParsedRawRequestAdapter(client *req.Client, parsedRawRequest *rawreq.ParsedRawRequest) (*req.Request, error) {
 	request := client.R()
 
-	// Split the raw request into lines
-	scanner := bufio.NewScanner(strings.NewReader(rawRequest))
-
-	// Read the request line (first line)
-	if !scanner.Scan() {
-		return nil, errors.New("invalid raw request: invalid request line found")
-	}
-
-	requestLine := scanner.Text()
-	fmt.Println("Request Line:", requestLine)
-
-	// Parse the request line
-	method, url, _, err := parseRequestLine(requestLine)
-	if err != nil {
-		return nil, fmt.Errorf("invalid raw request: %w", err)
-	}
-
-	request.Method = method
-	request.SetURL(url)
+	request.Method = parsedRawRequest.Method
+	request.SetURL(parsedRawRequest.Path)
 	// Set the protocol (HTTP/1.1, HTTP/2, etc.) if needed
 
-	// Parse the headers
-	for scanner.Scan() {
-		line := scanner.Text()
-		if strings.TrimSpace(line) == "" {
-			// An empty line indicates the end of headers
-			break
-		}
-		// Split the header line into key and value
-		key, value, err := parseHeaderLine(line)
-		if err != nil {
-			return nil, fmt.Errorf("invalid raw request: %w", err)
-		}
-		request.SetHeaderNonCanonical(key, value)
+	for _, header := range parsedRawRequest.Headers {
+		slog.Debug("header", header.Key, header.Value)
+		request.SetHeaderNonCanonical(header.Key, header.Value)
 	}
 
-	// Parse the body if present
-	fullBodyBytes := make([]byte, 0)
-	if scanner.Scan() {
-		bodyBytes := scanner.Bytes()
+	request.SetContextData(rawreq.RequestBodyType, parsedRawRequest.BodyType)
 
-		if len(bodyBytes) > 0 {
-			// apped the body of the request
-			fullBodyBytes = append(fullBodyBytes, bodyBytes...)
-		}
-	}
-
-	reqBodyType := None
-
-	if fullBodyBytes != nil {
-		request.SetBodyBytes(fullBodyBytes)
-
-		// Json body
-		if gjson.ValidBytes(fullBodyBytes) {
-			reqBodyType = Json
-		}
-	}
-
-	request.SetContextData(RequestBodyType, reqBodyType)
+	request.SetBodyBytes(parsedRawRequest.Body)
 
 	return request, nil
-}
-
-func parseRequestLine(requestLine string) (string, string, string, error) {
-	parts := strings.Split(requestLine, " ")
-	if len(parts) != 3 {
-		return "", "", "", fmt.Errorf("invalid request line format [%s]", requestLine)
-	}
-
-	method := parts[0]
-	url := parts[1]
-	protocol := parts[2]
-
-	return method, url, protocol, nil
-}
-
-func parseHeaderLine(headerLine string) (key, value string, err error) {
-	parts := strings.SplitN(headerLine, ": ", 2)
-	if len(parts) != 2 {
-		return "", "", fmt.Errorf("invalid header format [%s]", headerLine)
-	}
-	return parts[0], parts[1], nil
 }

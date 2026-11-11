@@ -27,6 +27,7 @@ bin/reqfuzzy flow compare --project examples/scripted-flow --base-url http://127
 The example obtains a fresh token, signs the final request body, and reads back the changed amount. Comparisons report response hashes and execution outcomes; they do not automatically classify a difference as a vulnerability.
 
 - [CLI commands and projects](docs/cli.md)
+- [Historical PayInt planning archive](docs/archive/payint-kvar/ARCHIVE.md)
 - [Visual flow mapping and authoring](docs/flow-map.md)
 - [Conditional journeys and bounded repetition](docs/flow-control.md)
 - [JavaScript request and response hooks](docs/script-hooks.md)

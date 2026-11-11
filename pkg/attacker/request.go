@@ -7,10 +7,40 @@ import (
 	"strings"
 
 	"github.com/imroc/req/v3"
+	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 )
 
 type Request struct {
 	*req.Request
+}
+
+func (r *Request) UpdateJsonBody(key string, value any) (err error) {
+	if r.GetContextData(RequestBodyType).(BodyType) != Json {
+		return fmt.Errorf("request body is not json")
+	}
+
+	updatedJsonBody, err := sjson.Set(string(r.Body), key, value)
+	if err != nil {
+		return
+	}
+
+	r.SetBodyJsonString(updatedJsonBody)
+	return
+}
+
+func (r *Request) DeleteJsonData(key string, value any) (err error) {
+	if r.GetContextData(RequestBodyType).(BodyType) != Json {
+		return fmt.Errorf("request body is not json")
+	}
+
+	updatedJsonBody, err := sjson.Delete(string(r.Body), key)
+	if err != nil {
+		return
+	}
+
+	r.SetBodyJsonString(updatedJsonBody)
+	return
 }
 
 func ParseRawRequest(client *req.Client, rawRequest string) (*req.Request, error) {
@@ -53,14 +83,28 @@ func ParseRawRequest(client *req.Client, rawRequest string) (*req.Request, error
 	}
 
 	// Parse the body if present
+	fullBodyBytes := make([]byte, 0)
 	if scanner.Scan() {
 		bodyBytes := scanner.Bytes()
 
 		if len(bodyBytes) > 0 {
-			// Set the body of the request
-			request.SetBodyBytes(bodyBytes)
+			// apped the body of the request
+			fullBodyBytes = append(fullBodyBytes, bodyBytes...)
 		}
 	}
+
+	reqBodyType := None
+
+	if fullBodyBytes != nil {
+		request.SetBodyBytes(fullBodyBytes)
+
+		// Json body
+		if gjson.ValidBytes(fullBodyBytes) {
+			reqBodyType = Json
+		}
+	}
+
+	request.SetContextData(RequestBodyType, reqBodyType)
 
 	return request, nil
 }

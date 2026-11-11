@@ -12,5 +12,7 @@
 - [x] Connect bindings, mutations, preflight, current-value templates, conservative inference, and observed proof; verify actual HTTP behavior and invalid-input refusal.
 - [x] Add binary request/response script representations and byte crypto with atomic conflict checks and real signature tests.
 - [x] Add multipart locations to map authoring, exports, help, docs, and an independently specified local upload journey; prove capture/campaign/replay and source-input protections.
-- [ ] Run appropriate race/vet/floor/build/browser gates, resolve review findings, publish, observe the specific CI run, and merge after passing checks.
-- [ ] Audit original requirements and current authoritative evidence for completion; keep the goal active if any required outcome remains unproven.
+- [x] Run appropriate race/vet/floor/build/browser gates, resolve review findings, publish, observe the specific CI run, and merge after passing checks.
+- [x] Audit original requirements and current authoritative evidence for completion; keep the goal active if any required outcome remains unproven.
+
+Completed: [PR #20](https://github.com/kaitoz11/reqfuzzy/pull/20), merge `70715c1`, after [CI run 42180327626](https://github.com/kaitoz11/reqfuzzy/actions/runs/42180327626) passed both Go jobs and browser acceptance. The [workflow audit](../../operator-workflow-audit.md) closes the initial tooling goal; broader corpus parity remains future work.

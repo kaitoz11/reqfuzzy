@@ -42,12 +42,17 @@ func main() {
 			return nil
 		})
 	}
+
+	fuzzer.AddExtractor(func(response attacker.Response) string {
+		return response.Status
+	})
+
 	fuzzy, err := fuzzer.Build()
 	if err != nil {
 		panic(err)
 	}
 
-	fuzzy.Fuzz()
+	go fuzzy.Fuzz()
 	//
 	// go func() {
 	// 	time.Sleep(time.Second * 20)
@@ -59,8 +64,8 @@ func main() {
 	// 	})
 	// }()
 	//
-	// for {
-	// 	time.Sleep(time.Second * 1)
-	// 	fuzzy.PrintFuzzingResult()
-	// }
+	for {
+		time.Sleep(time.Second * 1)
+		fuzzy.PrintFuzzingResult()
+	}
 }
